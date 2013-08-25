@@ -6,8 +6,8 @@ Manage configurations
 
 import sys
 import os
-from os.path import abspath, dirname
-from argparse import ArgumentParser
+from os.path import expanduser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import logging
 import subprocess
@@ -29,7 +29,7 @@ def aptget(command, args, verbose, dryrun):
 
 def install(*args):
     aptget('install', args, verbose, dryrun)
-
+ 
 def purge(*args):
     aptget('purge', args, verbose, dryrun)
 
@@ -42,8 +42,8 @@ def applyconf(args):
 
     dryrun = args.dryrun
     verbose = args.verbose
-    sys.path.append(dirname(abspath(args.config)))
-    execfile(args.config)
+    sys.path.append(expanduser(args.directory))
+    execfile(expanduser(args.directory) + 'index.py')
 
 def main():
     '''
@@ -52,8 +52,10 @@ def main():
 
     parser = ArgumentParser(description="manage configurations")
     subs = parser.add_subparsers()
-    papply = subs.add_parser('apply', help="apply configuration")
-    papply.add_argument('config', help="configuration file")
+    papply = subs.add_parser('apply', help="apply configuration",
+                             formatter_class=ArgumentDefaultsHelpFormatter)
+    papply.add_argument('-d', '--directory', help="configuration directory",
+                        default='~/.muppet')
     papply.add_argument('--dryrun', '-n', action='store_true',
                         help="don't perform any change")
     papply.add_argument('--verbose', '-v', action='store_true',
