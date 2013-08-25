@@ -5,53 +5,45 @@ Manage configurations
 '''
 
 import sys
+import os
+from os.path import abspath, dirname
 from argparse import ArgumentParser
 
 import logging
-from mako.template import Template
-from mako.lookup import TemplateLookup
 import subprocess
-import yaml
 import pprint
-
-APTGETCMDS = 'install', 'purge'
 
 class MuppetError(Exception):
     pass
 
 def call(command, dryrun):
-    subprocess.call(command, shell=True)
+    logging.debug(command)
+    if not dryrun:
+        subprocess.call(command, shell=True)
 
-def aptget(args, command, verbose, dryrun):
-    cmd = "sudo apt-get %s%s %s" % ('-s ' if dryrun else '', command, args)
+def aptget(command, args, verbose, dryrun):
+    cmd = "sudo apt-get %s%s %s" % \
+        ('-s ' if dryrun else '', command, ' '.join(args))
     logging.debug(cmd)
     subprocess.call(cmd, shell=True)
 
-def parse(string, verbose, dryrun):
-    cmd, args = string.split(None, 1)
-    if cmd == 'call':
-        call(args, dryrun)
-    elif cmd in APTGETCMDS:
-        aptget(args, cmd, verbose, dryrun)
-    else:
-        raise MuppetError("Unexpected command: %s" % cmd)
+def install(*args):
+    aptget('install', args, verbose, dryrun)
+
+def purge(*args):
+    aptget('purge', args, verbose, dryrun)
 
 def applyconf(args):
     '''
     Apply configuration
     '''
 
-    lookup = TemplateLookup(directories=['.'])
-    template = Template(filename=args.config, lookup=lookup)
-    for entry in yaml.load(template.render()):
-        if isinstance(entry, str):
-            # parse(entry, args.verbose, args.dryrun)
-            pass
-        elif isinstance(entry, dict):
-            print entry
-            entry.popitem()
-        else:
-            raise MuppetError("Unexpected entry type")
+    global dryrun, verbose 
+
+    dryrun = args.dryrun
+    verbose = args.verbose
+    sys.path.append(dirname(abspath(args.config)))
+    execfile(args.config)
 
 def main():
     '''
