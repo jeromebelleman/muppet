@@ -1,41 +1,69 @@
 #! /usr/bin/env python
 
-import os
+'''
+Common configuration options
+'''
+
+import os, sys
 from os.path import exists, islink
 import stat, pwd, grp
 import subprocess
 import logging
+import difflib
 
 from mako.template import Template
+
+import pprint
 
 WARNLINK = "%s is a link, not sure what to do and won't do anything"
 FILES = '%s/files/root/%s'
 IMPORT = 'from functions import %s'
 
 def include(module):
-    execfile('%s/%s.py' % \
-        (__globals__['_cfg']['directory'], module), __globals__)
+    '''
+    Execute module with common globals
+    '''
+
+    execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__)
 
 def run(command):
+    '''
+    Run command
+    '''
+
     logging.debug(command)
-    if not __globals__['_cfg']['dryrun']:
+    if not __muppet__['_dryrun']:
         subprocess.call(command, shell=True)
 
-def _aptget(command, args, verbose, dryrun):
+def _aptget(command, args, dryrun):
+    '''
+    Run apt-get
+    '''
+
     cmd = "sudo apt-get %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.debug(cmd)
     subprocess.call(cmd, shell=True)
 
 def install(*args):
-    _aptget('install', args,
-            __globals__['_cfg']['verbose'], __globals__['_cfg']['dryrun'])
+    '''
+    Run apt-get install
+    '''
+
+    _aptget('install', args, __muppet__['_dryrun'])
  
 def purge(*args):
-    _aptget('purge', args,
-            __globals__['_cfg']['verbose'], __globals__['_cfg']['dryrun'])
+    '''
+    Run apt-get purge
+    '''
+
+    _aptget('purge', args, __muppet__['_dryrun'])
 
 def edit(path, owner, group, mode):
+    '''
+    Edit config file with template
+    '''
+
     status = os.stat(path)
 
     # Change owner and group
@@ -44,10 +72,10 @@ def edit(path, owner, group, mode):
     if uid != status.st_uid or gid != status.st_gid:
         # TODO To be tested
         if islink(path):
-            logging.warning(WARNLINK % path)
+            logging.warning(WARNLINK, path)
         else:
-            logging.debug("chowning %s:%s %s" % (owner, group, path))
-            if not __globals__['_cfg']['dryrun']:
+            logging.debug("chowning %s:%s %s", owner, group, path)
+            if not __muppet__['_dryrun']:
                 # TODO To be tested
                 os.chown(path, uid, gid)
 
@@ -55,35 +83,46 @@ def edit(path, owner, group, mode):
     if mode != stat.S_IMODE(status.st_mode):
         # TODO To be tested
         if islink(path):
-            logging.warning(WARNLINK % path)
+            logging.warning(WARNLINK, path)
         else:
-            logging.debug("chmoding %s %s" % oct(mode))
-            if not __globals__['_cfg']['dryrun']:
+            logging.debug("chmoding %s %s", oct(mode), path)
+            if not __muppet__['_dryrun']:
                 # TODO To be tested
                 os.chmod(path, mode)
 
     # Apply template
-    identifiers = (k for k in __globals__.keys() if k[0] != '_')
-    tpt = Template(filename=FILES % \
-                   (__globals__['_cfg']['directory'], path[1:]),
+    identifiers = (k for k in __muppet__.keys() if k[0] != '_')
+    tpt = Template(filename=FILES % (__muppet__['_directory'], path[1:]),
                    imports=[IMPORT % ', '.join(identifiers)])
-    print tpt.render()
+    configfile = open(path)
+    if __muppet__['_verbose']:
+        differ = difflib.Differ()
+        diff = differ.compare(configfile.read().splitlines(True),
+                              tpt.render().splitlines(True))
+        sys.stdout.writelines(list(diff))
+    configfile.close()
+        
 
 def isfreshinstall():
-    return not exists(__globals__['_cfg']['directory'] + '/notjustinstalled')
+    '''
+    Check if OS was freshly installed
+    '''
+
+    return not exists(__muppet__['_directory'] + '/notjustinstalled')
 
 def islaptop():
+    '''
+    Check if hardware is laptop
+    '''
+
     return True
 
-# FIXME Is 'globals' a proper name? How about 'cfg' here and rename 'cfg' to
-# something else?
-__globals__ = {
-               'include':        include,
-               'run':            run,
-               'edit':           edit,
-               'install':        install,
-               'purge':          purge,
-               'isfreshinstall': isfreshinstall,
-               'islaptop':       islaptop,
-              }
-
+__muppet__ = {
+           'include':        include,
+           'run':            run,
+           'edit':           edit,
+           'install':        install,
+           'purge':          purge,
+           'isfreshinstall': isfreshinstall,
+           'islaptop':       islaptop,
+          }

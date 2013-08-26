@@ -22,12 +22,11 @@ def applyconf(args):
     Apply configuration
     '''
             
-    functions.__globals__['_cfg'] = {'dryrun':    args.dryrun,
-                                     'verbose':   args.verbose,
-                                     'directory': args.directory,
-                                    }
+    functions.__muppet__['_dryrun'] = args.dryrun
+    functions.__muppet__['_verbose'] = args.verbose
+    functions.__muppet__['_directory'] = args.directory
 
-    execfile(expanduser(args.directory) + '/index.py', functions.__globals__)
+    execfile(expanduser(args.directory) + '/index.py', functions.__muppet__)
 
 def main():
     '''
