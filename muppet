@@ -6,17 +6,23 @@ Manage configurations
 
 import sys
 import os
-from os.path import expanduser, exists
+from os.path import expanduser, exists, islink
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import stat, pwd, grp
 
 import logging
 import subprocess
 import pprint
 
+from mako.template import Template
+
+WARNLINK = "%s is a link, not sure what to do and won't do anything"
+FILES = '%s/files/root/%s'
+
 def include(module):
     execfile('%s/%s.py' % (_globals['_cfg']['directory'], module), _globals)
 
-def call(command):
+def run(command):
     logging.debug(command)
     if not _globals['_cfg']['dryrun']:
         subprocess.call(command, shell=True)
@@ -34,6 +40,37 @@ def install(*args):
 def purge(*args):
     _aptget('purge', args,
             _globals['_cfg']['verbose'], _globals['_cfg']['dryrun'])
+
+def edit(path, owner, group, mode):
+    status = os.stat(path)
+
+    # Change owner and group
+    uid = pwd.getpwnam(owner).pw_uid
+    gid = grp.getgrnam(group).gr_gid
+    if uid != status.st_uid or gid != status.st_gid:
+        # TODO To be tested
+        if islink(path):
+            logging.warning(WARNLINK % path)
+        else:
+            logging.debug("chowning %s:%s %s" % (owner, group, path))
+            if not _globals['_cfg']['dryrun']:
+                # TODO To be tested
+                os.chown(path, uid, gid)
+
+    # Change mode
+    if mode != stat.S_IMODE(status.st_mode):
+        # TODO To be tested
+        if islink(path):
+            logging.warning(WARNLINK % path)
+        else:
+            logging.debug("chmoding %s %s" % oct(mode))
+            if not _globals['_cfg']['dryrun']:
+                # TODO To be tested
+                os.chmod(path, mode)
+
+    # Apply template
+    tpt = Template(filename=FILES % (_globals['_cfg']['directory'], path[1:]))
+    print tpt.render()
 
 def isfreshinstall():
     return not exists(_globals['_cfg']['directory'] + '/notjustinstalled')
@@ -53,7 +90,8 @@ def applyconf(args):
                                    'directory': args.directory,
                                   },
                 'include':        include,
-                'call':           call,
+                'run':            run,
+                'edit':           edit,
                 'install':        install,
                 'purge':          purge,
                 'isfreshinstall': isfreshinstall,
