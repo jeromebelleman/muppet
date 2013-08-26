@@ -6,44 +6,60 @@ Manage configurations
 
 import sys
 import os
-from os.path import expanduser
+from os.path import expanduser, exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import logging
 import subprocess
 import pprint
 
-class MuppetError(Exception):
-    pass
+def include(module):
+    execfile('%s/%s.py' % (_globals['_cfg']['directory'], module), _globals)
 
-def call(command, dryrun):
+def call(command):
     logging.debug(command)
-    if not dryrun:
+    if not _globals['_cfg']['dryrun']:
         subprocess.call(command, shell=True)
 
-def aptget(command, args, verbose, dryrun):
+def _aptget(command, args, verbose, dryrun):
     cmd = "sudo apt-get %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.debug(cmd)
     subprocess.call(cmd, shell=True)
 
 def install(*args):
-    aptget('install', args, verbose, dryrun)
+    _aptget('install', args,
+            _globals['_cfg']['verbose'], _globals['_cfg']['dryrun'])
  
 def purge(*args):
-    aptget('purge', args, verbose, dryrun)
+    _aptget('purge', args,
+            _globals['_cfg']['verbose'], _globals['_cfg']['dryrun'])
+
+def isfreshinstall():
+    return not exists(_globals['_cfg']['directory'] + '/notjustinstalled')
+
+def islaptop():
+    return True
 
 def applyconf(args):
     '''
     Apply configuration
     '''
 
-    global dryrun, verbose 
+    global _globals
 
-    dryrun = args.dryrun
-    verbose = args.verbose
-    sys.path.append(expanduser(args.directory))
-    execfile(expanduser(args.directory) + 'index.py')
+    _globals = {'_cfg':           {'dryrun':    args.dryrun,
+                                   'verbose':   args.verbose,
+                                   'directory': args.directory,
+                                  },
+                'include':        include,
+                'call':           call,
+                'install':        install,
+                'purge':          purge,
+                'isfreshinstall': isfreshinstall,
+                'islaptop':       islaptop,
+               }
+    execfile(expanduser(args.directory) + '/index.py', _globals)
 
 def main():
     '''
@@ -66,7 +82,10 @@ def main():
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format="%(message)s")
 
-    args.func(args)
+    try:
+        args.func(args)
+    except IOError, e:
+        logging.error(e)
 
 if __name__ == '__main__':
     sys.exit(main())
