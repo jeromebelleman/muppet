@@ -7,9 +7,11 @@ Common configuration options
 import os, sys
 from os.path import exists, islink
 import stat, pwd, grp
+from datetime import datetime
 import subprocess
 import logging
 import difflib
+import shutil
 
 from mako.template import Template
 
@@ -59,14 +61,11 @@ def purge(*args):
 
     _aptget('purge', args, __muppet__['_dryrun'])
 
-def edit(path, owner, group, mode):
+def _chown(path, status, owner, group):
     '''
-    Edit config file with template
+    Change owner
     '''
 
-    status = os.stat(path)
-
-    # Change owner and group
     uid = pwd.getpwnam(owner).pw_uid
     gid = grp.getgrnam(group).gr_gid
     if uid != status.st_uid or gid != status.st_gid:
@@ -79,7 +78,11 @@ def edit(path, owner, group, mode):
                 # TODO To be tested
                 os.chown(path, uid, gid)
 
-    # Change mode
+def _chmod(path, status, mode):
+    '''
+    Change mode
+    '''
+
     if mode != stat.S_IMODE(status.st_mode):
         # TODO To be tested
         if islink(path):
@@ -89,6 +92,19 @@ def edit(path, owner, group, mode):
             if not __muppet__['_dryrun']:
                 # TODO To be tested
                 os.chmod(path, mode)
+
+def edit(path, owner, group, mode):
+    '''
+    Edit config file with template
+    '''
+
+    status = os.stat(path)
+
+    # Change owner and group
+    _chown(path, status, owner, group)
+
+    # Change mode
+    _chmod(path, status, mode)
 
     # Apply template
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
@@ -105,8 +121,19 @@ def edit(path, owner, group, mode):
     if __muppet__['_verbose']:
         sys.stdout.writelines(diff)
 
-    # Write config file
     if diff:
+        # Back up config file
+        moved = datetime.now().strftime('%Y%m%d_%H%M%S')
+        logging.debug("backing up %s to %s-%s", path, path, moved)
+        if not exists(moved):
+            if not __muppet__['_dryrun']:
+                # TODO To be tested
+                shutil.copy2(path, moved)
+        else:
+            # TODO To be tested
+            logging.warning("%s already exists, won't do anything", moved)
+
+        # Edit config file
         logging.debug("editing %s", path)
         if not __muppet__['_dryrun']:
             # TODO To be tested
