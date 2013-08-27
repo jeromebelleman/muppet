@@ -96,13 +96,12 @@ def edit(path, owner, group, mode):
                    imports=[IMPORT % ', '.join(identifiers)])
     configfile = open(path)
     if __muppet__['_verbose']:
-        differ = difflib.Differ()
-        diff = differ.compare(configfile.read().splitlines(True),
-                              tpt.render().splitlines(True))
+        diff = difflib.unified_diff(configfile.read().splitlines(True),
+                                    tpt.render().splitlines(True),
+                                    path, '<new>')
         sys.stdout.writelines(list(diff))
     configfile.close()
         
-
 def isfreshinstall():
     '''
     Check if OS was freshly installed
