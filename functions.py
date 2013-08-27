@@ -15,9 +15,7 @@ import shutil
 
 from mako.template import Template
 
-import pprint
-
-WARNLINK = "%s is a link, not sure what to do and won't do anything"
+WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting edit"
 FILES = '%s/files/root/%s'
 IMPORT = 'from functions import %s'
 
@@ -69,14 +67,12 @@ def _chown(path, status, owner, group):
     uid = pwd.getpwnam(owner).pw_uid
     gid = grp.getgrnam(group).gr_gid
     if uid != status.st_uid or gid != status.st_gid:
-        # TODO To be tested
-        if islink(path):
-            logging.warning(WARNLINK, path)
-        else:
-            logging.debug("chowning %s:%s %s", owner, group, path)
-            if not __muppet__['_dryrun']:
-                # TODO To be tested
-                os.chown(path, uid, gid)
+        logging.debug("chowning %s:%s %s", owner, group, path)
+        if not __muppet__['_dryrun']:
+            os.chown(path, uid, gid)
+        return True
+    else:
+        return False
 
 def _chmod(path, status, mode):
     '''
@@ -84,27 +80,25 @@ def _chmod(path, status, mode):
     '''
 
     if mode != stat.S_IMODE(status.st_mode):
-        # TODO To be tested
-        if islink(path):
-            logging.warning(WARNLINK, path)
-        else:
-            logging.debug("chmoding %s %s", oct(mode), path)
-            if not __muppet__['_dryrun']:
-                # TODO To be tested
-                os.chmod(path, mode)
+        logging.debug("chmoding %s %s", oct(mode), path)
+        if not __muppet__['_dryrun']:
+            os.chmod(path, mode)
+        return True
+    else:
+        return False
 
 def edit(path, owner, group, mode):
     '''
     Edit config file with template
     '''
 
-    status = os.stat(path)
+    change = False
 
-    # Change owner and group
-    _chown(path, status, owner, group)
-
-    # Change mode
-    _chmod(path, status, mode)
+    if islink(path):
+        # If our config file template maps to a symlink, we're on for a lot of
+        # confusion, so let's not allow this
+        logging.warning(WARNLINK, path)
+        return
 
     # Apply template
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
@@ -113,41 +107,61 @@ def edit(path, owner, group, mode):
     contents = tpt.render()
 
     # Diff
-    configfile = open(path)
-    diff = list(difflib.unified_diff(configfile.read().splitlines(True),
-                                     contents.splitlines(True),
-                                     path, '<new>'))
-    configfile.close()
-    if __muppet__['_verbose']:
-        sys.stdout.writelines(diff)
+    try:
+        configfile = open(path)
+        diff = list(difflib.unified_diff(configfile.read().splitlines(True),
+                                         contents.splitlines(True),
+                                         path, '<new>'))
+        configfile.close()
+        if __muppet__['_verbose']:
+            sys.stdout.writelines(diff)
+    except IOError:
+        diff = True
 
     if diff:
         # Back up config file
-        moved = datetime.now().strftime('%Y%m%d_%H%M%S')
-        logging.debug("backing up %s to %s-%s", path, path, moved)
-        if not exists(moved):
-            if not __muppet__['_dryrun']:
-                # TODO To be tested
-                shutil.copy2(path, moved)
-        else:
-            # TODO To be tested
-            logging.warning("%s already exists, won't do anything", moved)
+        if exists(path):
+            moved = '%s-%s' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
+            logging.debug("backing up %s to %s", path, moved)
+            if not exists(moved):
+                if not __muppet__['_dryrun']:
+                    shutil.copy2(path, moved) # Will dereference before copying
+            else:
+                logging.warning("%s already exists - aborting edit", moved)
+                return
 
         # Edit config file
-        logging.debug("editing %s", path)
         if not __muppet__['_dryrun']:
-            # TODO To be tested
-            os.chmod(path, mode)
+            logging.debug("editing %s", path)
             configfile = open(path, 'w')
             configfile.write(contents)
             configfile.close()
+            logging.debug("copying stat to %s", path)
+            # Will dereference before copying stat
+            shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
+        change = True
+
+    # Change attributes
+    if exists(path):
+        status = os.stat(path)
+
+        # Change owner and group
+        change |= _chown(path, status, owner, group)
+
+        # Change mode
+        change |= _chmod(path, status, mode)
+
+    return change
         
 def isfreshinstall():
     '''
     Check if OS was freshly installed
     '''
 
-    return not exists(__muppet__['_directory'] + '/notjustinstalled')
+    isfi = not exists(__muppet__['_directory'] + '/notjustinstalled')
+    open(__muppet__['_directory'] + '/notjustinstalled', 'w').close()
+
+    return isfi
 
 def islaptop():
     '''
