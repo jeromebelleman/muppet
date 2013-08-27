@@ -94,13 +94,26 @@ def edit(path, owner, group, mode):
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
     tpt = Template(filename=FILES % (__muppet__['_directory'], path[1:]),
                    imports=[IMPORT % ', '.join(identifiers)])
+    contents = tpt.render()
+
+    # Diff
     configfile = open(path)
-    if __muppet__['_verbose']:
-        diff = difflib.unified_diff(configfile.read().splitlines(True),
-                                    tpt.render().splitlines(True),
-                                    path, '<new>')
-        sys.stdout.writelines(list(diff))
+    diff = list(difflib.unified_diff(configfile.read().splitlines(True),
+                                     contents.splitlines(True),
+                                     path, '<new>'))
     configfile.close()
+    if __muppet__['_verbose']:
+        sys.stdout.writelines(diff)
+
+    # Write config file
+    if diff:
+        logging.debug("editing %s", path)
+        if not __muppet__['_dryrun']:
+            # TODO To be tested
+            os.chmod(path, mode)
+            configfile = open(path, 'w')
+            configfile.write(contents)
+            configfile.close()
         
 def isfreshinstall():
     '''
