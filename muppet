@@ -5,15 +5,9 @@ Manage configurations
 '''
 
 import sys
-import os
-from os.path import expanduser, exists, islink
+from os.path import expanduser
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import stat, pwd, grp
-
 import logging
-import pprint
-
-from mako.template import Template
 
 import functions
 
@@ -51,8 +45,8 @@ def main():
 
     try:
         args.func(args)
-    except IOError, e:
-        logging.error(e)
+    except IOError, exc:
+        logging.error(exc)
 
 if __name__ == '__main__':
     sys.exit(main())
