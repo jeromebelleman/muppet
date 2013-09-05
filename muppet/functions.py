@@ -13,6 +13,7 @@ import subprocess
 import logging
 import difflib
 import shutil
+import errno
 
 from mako.template import Template
 
@@ -23,6 +24,7 @@ SUDOERSD = '/etc/sudoers.d'
 MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
          '-rwxr--r--': S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IROTH,
          '-r--r-----': S_IRUSR | S_IRGRP,
+         '-r-xr--r--': S_IRUSR | S_IXUSR | S_IRGRP | S_IROTH,
         }
 
 def include(module):
@@ -30,7 +32,7 @@ def include(module):
     Execute module with common globals
     '''
 
-    execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__)
+    execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
 
 def run(command):
     '''
@@ -46,7 +48,7 @@ def _aptget(command, args, dryrun):
     Run apt-get
     '''
 
-    cmd = "sudo apt-get %s%s %s" % \
+    cmd = "sudo apt-get -y %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.debug(cmd)
     subprocess.call(cmd, shell=True)
@@ -191,7 +193,7 @@ def edit(path, owner, group, mode):
 
     return change
         
-def isfreshinstall():
+def isjustinstalled():
     '''
     Check if OS was freshly installed
     '''
@@ -252,8 +254,9 @@ def visudo(filename):
             else:
                 logging.warning(err.strip())
 
-        except OSError:
-            logging.warning("%s busy - aborting edit", path)
+        except OSError, e:
+            if e == errno.EEXIST:
+                logging.warning("%s busy - aborting edit", path)
 
     # Change attributes
     if exists(path):
@@ -266,13 +269,13 @@ def visudo(filename):
         change |= _chmod(path, status, MODES['-r--r-----'])
 
 __muppet__ = {
-              'include':        include,
-              'run':            run,
-              'edit':           edit,
-              'visudo':         visudo,
-              'install':        install,
-              'purge':          purge,
-              'isfreshinstall': isfreshinstall,
-              'islaptop':       islaptop,
-              'MODES':          MODES,
+              'include':         include,
+              'run':             run,
+              'edit':            edit,
+              'visudo':          visudo,
+              'install':         install,
+              'purge':           purge,
+              'isjustinstalled': isjustinstalled,
+              'islaptop':        islaptop,
+              'MODES':           MODES,
              }

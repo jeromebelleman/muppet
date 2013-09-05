@@ -11,6 +11,9 @@ import logging
 
 import muppet.functions
 
+# TODO Userwide config
+# TODO Option to not use Mako
+
 def applyconf(args):
     '''
     Apply configuration
@@ -30,6 +33,7 @@ def main():
 
     parser = ArgumentParser(description="manage configurations")
     subs = parser.add_subparsers()
+    # TODO Remove sub-command
     papply = subs.add_parser('apply', help="apply configuration",
                              formatter_class=ArgumentDefaultsHelpFormatter)
     papply.add_argument('-d', '--directory', help="configuration directory",
