@@ -206,7 +206,7 @@ def islaptop():
     Check if hardware is laptop
     '''
 
-    return True
+    return len(os.listdir('/sys/class/power_supply'))
 
 def visudo(filename):
     '''
