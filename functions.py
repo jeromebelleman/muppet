@@ -6,7 +6,8 @@ Common configuration options
 
 import os, sys
 from os.path import exists, islink
-import stat, pwd, grp
+import pwd, grp
+from stat import S_IMODE, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IROTH
 from datetime import datetime
 import subprocess
 import logging
@@ -84,13 +85,71 @@ def _chmod(path, status, mode):
     Change mode
     '''
 
-    if mode != stat.S_IMODE(status.st_mode):
+    if mode != S_IMODE(status.st_mode):
         logging.debug("chmoding %s %s", oct(mode), path)
         if not __muppet__['_dryrun']:
             os.chmod(path, mode)
         return True
     else:
         return False
+
+def _diff(path, contents):
+    '''
+    Diff config files
+    '''
+
+    try:
+        configfile = open(path)
+        diff = list(difflib.unified_diff(configfile.read().splitlines(True),
+                                         contents.splitlines(True),
+                                         path, '<new>'))
+        configfile.close()
+        if __muppet__['_verbose']:
+            sys.stdout.writelines(diff)
+
+        return diff
+    except IOError:
+        return True
+
+def _template(path):
+    '''
+    Apply template
+    '''
+
+    identifiers = (k for k in __muppet__.keys() if k[0] != '_')
+    tpt = Template(filename=FILES % (__muppet__['_directory'], path[1:]),
+                   imports=[IMPORT % ', '.join(identifiers)])
+    return tpt.render()
+
+def _backup(path):
+    '''
+    Backup config file
+    '''
+
+    moved = '%s-%s~' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
+    logging.debug("backing up %s to %s", path, moved)
+    if exists(moved):
+        logging.warning("%s already exists - aborting edit", moved)
+        return False
+    else:
+        if not __muppet__['_dryrun']:
+            shutil.copy2(path, moved) # Will dereference before copying
+        return True
+
+def _edit(path, contents):
+    '''
+    Edit config file
+    '''
+
+    if not __muppet__['_dryrun']:
+        logging.debug("editing %s", path)
+        configfile = open(path, 'w')
+        configfile.write(contents)
+        configfile.close()
+
+        logging.debug("copying stat to %s", path)
+        # Will dereference before copying stat
+        shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
 
 def edit(path, owner, group, mode):
     '''
@@ -106,44 +165,18 @@ def edit(path, owner, group, mode):
         return
 
     # Apply template
-    identifiers = (k for k in __muppet__.keys() if k[0] != '_')
-    tpt = Template(filename=FILES % (__muppet__['_directory'], path[1:]),
-                   imports=[IMPORT % ', '.join(identifiers)])
-    contents = tpt.render()
+    contents = _template(path)
 
     # Diff
-    try:
-        configfile = open(path)
-        diff = list(difflib.unified_diff(configfile.read().splitlines(True),
-                                         contents.splitlines(True),
-                                         path, '<new>'))
-        configfile.close()
-        if __muppet__['_verbose']:
-            sys.stdout.writelines(diff)
-    except IOError:
-        diff = True
+    diff = _diff(path, contents)
 
     if diff:
         # Back up config file
-        if exists(path):
-            moved = '%s-%s' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
-            logging.debug("backing up %s to %s", path, moved)
-            if not exists(moved):
-                if not __muppet__['_dryrun']:
-                    shutil.copy2(path, moved) # Will dereference before copying
-            else:
-                logging.warning("%s already exists - aborting edit", moved)
-                return
+        if exists(path) and not _backup(path):
+            return
 
         # Edit config file
-        if not __muppet__['_dryrun']:
-            logging.debug("editing %s", path)
-            configfile = open(path, 'w')
-            configfile.write(contents)
-            configfile.close()
-            logging.debug("copying stat to %s", path)
-            # Will dereference before copying stat
-            shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
+        _edit(path, contents)
         change = True
 
     # Change attributes
@@ -175,10 +208,68 @@ def islaptop():
 
     return True
 
+def visudo(filename):
+    '''
+    Edit sudoers
+    '''
+
+    change = False
+
+    path = '%s/%s' % (SUDOERSD, filename)
+
+    # Apply template
+    contents = _template(path)
+
+    # Diff
+    diff = _diff(path, contents)
+
+    if diff:
+        # Edit sudoers file
+        try:
+            # Check syntax
+            args = ['/usr/sbin/visudo', '-c', '-f', '-']
+            devnull = open(os.devnull, 'w')
+            process = subprocess.Popen(args, stdin=subprocess.PIPE,
+                                       stdout=devnull, stderr=subprocess.PIPE)
+            _, err = process.communicate(contents)
+            devnull.close()
+            if process.returncode == 0:
+                # Back up sudoers file
+                if exists(path) and not _backup(path):
+                    return
+
+                # Create lockfile
+                lockfile = os.open(path + '.tmp', os.O_CREAT | os.O_EXCL)
+
+                # Edit sudoers file
+                _edit(path, contents)
+
+                # Remove lockfile
+                os.close(lockfile)
+                os.remove(path + '.tmp')
+
+                change = True
+            else:
+                logging.warning(err.strip())
+
+        except OSError:
+            logging.warning("%s busy - aborting edit", path)
+
+    # Change attributes
+    if exists(path):
+        status = os.stat(path)
+
+        # Change owner and group
+        change |= _chown(path, status, 'root', 'root')
+
+        # Change mode
+        change |= _chmod(path, status, MODES['-r--r-----'])
+
 __muppet__ = {
            'include':        include,
            'run':            run,
            'edit':           edit,
+           'visudo':         visudo,
            'install':        install,
            'purge':          purge,
            'isfreshinstall': isfreshinstall,
