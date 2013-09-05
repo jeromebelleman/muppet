@@ -119,8 +119,7 @@ def _template(path):
     '''
 
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
-    tpt = Template(filename=FILES % (__muppet__['_directory'], path[1:]),
-                   imports=[IMPORT % ', '.join(identifiers)])
+    tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
     return tpt.render()
 
 def _backup(path):
@@ -143,17 +142,30 @@ def _edit(path, contents):
     Edit config file
     '''
 
+    logging.debug("editing %s", path)
     if not __muppet__['_dryrun']:
-        logging.debug("editing %s", path)
         configfile = open(path, 'w')
         configfile.write(contents)
         configfile.close()
 
-        logging.debug("copying stat to %s", path)
+    logging.debug("copying stat to %s", path)
+    if not __muppet__['_dryrun']:
         # Will dereference before copying stat
         shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
 
-def edit(path, owner, group, mode):
+def _contents(path, verbatim):
+    localpath = FILES % (__muppet__['_directory'], path[1:])
+
+    if verbatim:
+        configfile = open(localpath)
+        contents = configfile.read()
+        configfile.close()
+    else:
+        contents = _template(localpath)
+
+    return contents
+
+def edit(path, owner, group, mode, verbatim=True):
     '''
     Edit config file with template
     '''
@@ -166,8 +178,8 @@ def edit(path, owner, group, mode):
         logging.warning(WARNLINK, path)
         return
 
-    # Apply template
-    contents = _template(path)
+    # Compile config file contents
+    contents = _contents(path, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -210,7 +222,7 @@ def islaptop():
 
     return len(os.listdir('/sys/class/power_supply'))
 
-def visudo(filename):
+def visudo(filename, verbatim=True):
     '''
     Edit sudoers
     '''
@@ -219,8 +231,8 @@ def visudo(filename):
 
     path = '%s/%s' % (SUDOERSD, filename)
 
-    # Apply template
-    contents = _template(path)
+    # Compile config file contents
+    contents = _contents(path, verbatim)
 
     # Diff
     diff = _diff(path, contents)
