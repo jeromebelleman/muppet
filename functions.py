@@ -18,6 +18,11 @@ from mako.template import Template
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting edit"
 FILES = '%s/files/root/%s'
 IMPORT = 'from functions import %s'
+SUDOERSD = '/etc/sudoers.d'
+MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+         '-rwxr--r--': S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IROTH,
+         '-r--r-----': S_IRUSR | S_IRGRP,
+        }
 
 def include(module):
     '''
@@ -178,4 +183,5 @@ __muppet__ = {
            'purge':          purge,
            'isfreshinstall': isfreshinstall,
            'islaptop':       islaptop,
+           'MODES':          MODES,
           }
