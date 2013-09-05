@@ -20,7 +20,8 @@ def applyconf(args):
     functions.__muppet__['_verbose'] = args.verbose
     functions.__muppet__['_directory'] = args.directory
 
-    execfile(expanduser(args.directory) + '/index.py', functions.__muppet__.copy())
+    execfile(expanduser(args.directory) + '/index.py',
+             functions.__muppet__.copy())
 
 def main():
     '''

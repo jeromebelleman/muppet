@@ -266,13 +266,13 @@ def visudo(filename):
         change |= _chmod(path, status, MODES['-r--r-----'])
 
 __muppet__ = {
-           'include':        include,
-           'run':            run,
-           'edit':           edit,
-           'visudo':         visudo,
-           'install':        install,
-           'purge':          purge,
-           'isfreshinstall': isfreshinstall,
-           'islaptop':       islaptop,
-           'MODES':          MODES,
-          }
+              'include':        include,
+              'run':            run,
+              'edit':           edit,
+              'visudo':         visudo,
+              'install':        install,
+              'purge':          purge,
+              'isfreshinstall': isfreshinstall,
+              'islaptop':       islaptop,
+              'MODES':          MODES,
+             }
