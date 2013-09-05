@@ -9,7 +9,7 @@ from os.path import exists, islink
 import pwd, grp
 from stat import S_IMODE, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IROTH
 from datetime import datetime
-import subprocess
+from subprocess import Popen, call, PIPE
 import logging
 import difflib
 import shutil
@@ -39,19 +39,26 @@ def run(command):
     Run command
     '''
 
-    logging.debug(command)
+    logging.info(command)
     if not __muppet__['_dryrun']:
-        subprocess.call(command, shell=True)
+        process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
+        out, err = process.communicate()
+        # TODO Test if inline if more than one line
+        logging.debug(out)
+        logging.debug(err)
 
 def _aptget(command, args, dryrun):
     '''
     Run apt-get
     '''
 
-    cmd = "sudo apt-get -yn %s%s %s" % \
+    cmd = "sudo apt-get -y %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
-    logging.debug(cmd)
-    subprocess.call(cmd, shell=True)
+    logging.info(cmd)
+    process = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+    out, err = process.communicate()
+    logging.debug(out)
+    logging.debug(err)
 
 def install(*args):
     '''
@@ -75,7 +82,7 @@ def _chown(path, status, owner, group):
     uid = pwd.getpwnam(owner).pw_uid
     gid = grp.getgrnam(group).gr_gid
     if uid != status.st_uid or gid != status.st_gid:
-        logging.debug("chowning %s:%s %s", owner, group, path)
+        logging.info("chowning %s:%s %s", owner, group, path)
         if not __muppet__['_dryrun']:
             os.chown(path, uid, gid)
         return True
@@ -88,7 +95,7 @@ def _chmod(path, status, mode):
     '''
 
     if mode != S_IMODE(status.st_mode):
-        logging.debug("chmoding %s %s", oct(mode), path)
+        logging.info("chmoding %s %s", oct(mode), path)
         if not __muppet__['_dryrun']:
             os.chmod(path, mode)
         return True
@@ -106,8 +113,8 @@ def _diff(path, contents):
                                          contents.splitlines(True),
                                          path, '<new>'))
         configfile.close()
-        if __muppet__['_verbose']:
-            sys.stdout.writelines(diff)
+        if __muppet__['_verbose'] and diff:
+            logging.debug('\n' + ''.join(diff))
 
         return diff
     except IOError:
@@ -128,7 +135,7 @@ def _backup(path):
     '''
 
     moved = '%s-%s~' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
-    logging.debug("backing up %s to %s", path, moved)
+    logging.info("backing up %s to %s", path, moved)
     if exists(moved):
         logging.warning("%s already exists - aborting edit", moved)
         return False
@@ -142,13 +149,13 @@ def _edit(path, contents):
     Edit config file
     '''
 
-    logging.debug("editing %s", path)
+    logging.info("editing %s", path)
     if not __muppet__['_dryrun']:
         configfile = open(path, 'w')
         configfile.write(contents)
         configfile.close()
 
-    logging.debug("copying stat to %s", path)
+    logging.info("copying stat to %s", path)
     if not __muppet__['_dryrun']:
         # Will dereference before copying stat
         shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
@@ -244,8 +251,7 @@ def visudo(filename, verbatim=True):
             # Check syntax
             args = ['/usr/sbin/visudo', '-c', '-f', '-']
             devnull = open(os.devnull, 'w')
-            process = subprocess.Popen(args, stdin=subprocess.PIPE,
-                                       stdout=devnull, stderr=subprocess.PIPE)
+            process = Popen(args, stdin=PIPE, stdout=devnull, stderr=PIPE)
             _, err = process.communicate(contents)
             devnull.close()
             if process.returncode == 0:
