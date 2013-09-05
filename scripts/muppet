@@ -9,19 +9,19 @@ from os.path import expanduser
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
 
-import functions
+import muppet.functions
 
 def applyconf(args):
     '''
     Apply configuration
     '''
             
-    functions.__muppet__['_dryrun'] = args.dryrun
-    functions.__muppet__['_verbose'] = args.verbose
-    functions.__muppet__['_directory'] = args.directory
+    muppet.functions.__muppet__['_dryrun'] = args.dryrun
+    muppet.functions.__muppet__['_verbose'] = args.verbose
+    muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
 
     execfile(expanduser(args.directory) + '/index.py',
-             functions.__muppet__.copy())
+             muppet.functions.__muppet__.copy())
 
 def main():
     '''
