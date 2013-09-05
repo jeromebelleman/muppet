@@ -48,7 +48,7 @@ def _aptget(command, args, dryrun):
     Run apt-get
     '''
 
-    cmd = "sudo apt-get -y %s%s %s" % \
+    cmd = "sudo apt-get -yn %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.debug(cmd)
     subprocess.call(cmd, shell=True)
@@ -210,10 +210,11 @@ def isjustinstalled():
     Check if OS was freshly installed
     '''
 
-    isfi = not exists(__muppet__['_directory'] + '/notjustinstalled')
-    open(__muppet__['_directory'] + '/notjustinstalled', 'w').close()
+    return not exists(__muppet__['_directory'] + '/notjustinstalled')
 
-    return isfi
+def notjustinstalled():
+    if not __muppet__['_dryrun']:
+        open(__muppet__['_directory'] + '/notjustinstalled', 'w').close()
 
 def islaptop():
     '''
@@ -281,13 +282,14 @@ def visudo(filename, verbatim=True):
         change |= _chmod(path, status, MODES['-r--r-----'])
 
 __muppet__ = {
-              'include':         include,
-              'run':             run,
-              'edit':            edit,
-              'visudo':          visudo,
-              'install':         install,
-              'purge':           purge,
-              'isjustinstalled': isjustinstalled,
-              'islaptop':        islaptop,
-              'MODES':           MODES,
+              'include':           include,
+              'run':               run,
+              'edit':              edit,
+              'visudo':            visudo,
+              'install':           install,
+              'purge':             purge,
+              'isjustinstalled':   isjustinstalled,
+              'notjustinstalled':  notjustinstalled,
+              'islaptop':          islaptop,
+              'MODES':             MODES,
              }

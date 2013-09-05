@@ -12,6 +12,7 @@ import logging
 import muppet.functions
 
 # TODO Userwide config
+# TODO Logging to file
 
 def applyconf(args):
     '''
@@ -30,25 +31,35 @@ def main():
     Entry function
     '''
 
+    # Arguments
     parser = ArgumentParser(description="manage configurations")
-    subs = parser.add_subparsers()
-    # TODO Remove sub-command
-    papply = subs.add_parser('apply', help="apply configuration",
-                             formatter_class=ArgumentDefaultsHelpFormatter)
-    papply.add_argument('-d', '--directory', help="configuration directory",
+    parser.add_argument('-d', '--directory', help="configuration directory",
                         default='~/.muppet')
-    papply.add_argument('--dryrun', '-n', action='store_true',
+    parser.add_argument('--dryrun', '-n', action='store_true',
                         help="don't perform any change")
-    papply.add_argument('--verbose', '-v', action='store_true',
+    parser.add_argument('--verbose', '-v', action='store_true',
                         help="be more verbose")
-    papply.set_defaults(func=applyconf)
+    parser.add_argument('--logfile', '-l',
+                        help="write messages to log file too")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(level=level, format="%(message)s")
+    # Messages
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    if args.logfile:
+        handler = logging.FileHandler(args.logfile)
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
     try:
-        args.func(args)
+        applyconf(args)
     except IOError, exc:
         logging.error(exc)
 
