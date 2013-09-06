@@ -12,7 +12,6 @@ import logging
 import muppet.functions
 
 # TODO Userwide config
-# TODO Logging to file
 
 def applyconf(args):
     '''
@@ -58,6 +57,7 @@ def main():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
+    # Run
     try:
         applyconf(args)
     except IOError, exc:

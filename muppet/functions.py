@@ -14,6 +14,7 @@ import logging
 import difflib
 import shutil
 import errno
+from select import select
 
 from mako.template import Template
 
@@ -34,6 +35,20 @@ def include(module):
 
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
 
+def _messages(proc):
+    # http://stackoverflow.com/questions/12270645
+    while True:
+        readies = select([proc.stdout.fileno(), proc.stderr.fileno()], [], [])
+
+        for ready in readies[0]:
+            if ready == proc.stdout.fileno():
+                logging.debug(proc.stdout.readline().strip())
+            elif ready == proc.stderr.fileno():
+                logging.warning(proc.stdout.readline().strip())
+
+        if proc.poll() != None:
+            break
+
 def run(command):
     '''
     Run command
@@ -41,30 +56,26 @@ def run(command):
 
     logging.info(command)
     if not __muppet__['_dryrun']:
-        process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
-        out, err = process.communicate()
-        # TODO Test if inline if more than one line
-        logging.debug(out)
-        logging.debug(err)
+        proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
+        _messages(proc)
 
 def _aptget(command, args, dryrun):
     '''
     Run apt-get
     '''
 
-    cmd = "sudo apt-get -y %s%s %s" % \
+    cmd = "DEBIAN_FRONTEND=noninteractive apt-get -qy %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.info(cmd)
-    process = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
-    out, err = process.communicate()
-    logging.debug(out)
-    logging.debug(err)
+    proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+    _messages(proc)
 
 def install(*args):
     '''
     Run apt-get install
     '''
 
+    # TODO Compare with a list from apt-cache pkgnames
     _aptget('install', args, __muppet__['_dryrun'])
  
 def purge(*args):
