@@ -11,8 +11,6 @@ import logging
 
 import muppet.functions
 
-# TODO Userwide config
-
 def applyconf(args):
     '''
     Apply configuration
@@ -21,6 +19,7 @@ def applyconf(args):
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
+    muppet.functions.__muppet__['users'] = args.users
 
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())
@@ -40,6 +39,8 @@ def main():
                         help="be more verbose")
     parser.add_argument('--logfile', '-l',
                         help="write messages to log file too")
+    parser.add_argument('--users', '-u', nargs='+', default=[],
+                        help="user:group pairs to apply the userwide config to")
     args = parser.parse_args()
 
     # Messages

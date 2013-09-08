@@ -5,7 +5,7 @@ Common configuration options
 '''
 
 import os, sys
-from os.path import exists, islink
+from os.path import expanduser, exists, islink
 import pwd, grp
 from stat import S_IMODE, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IROTH
 from datetime import datetime
@@ -19,13 +19,15 @@ from select import select
 from mako.template import Template
 
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting edit"
-FILES = '%s/files/root/%s'
+ROOT = '%s/files/root/%s'
+USER = '%s/files/user/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
 MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
          '-rwxr--r--': S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IROTH,
          '-r--r-----': S_IRUSR | S_IRGRP,
          '-r-xr--r--': S_IRUSR | S_IXUSR | S_IRGRP | S_IROTH,
+         '-rw-------': S_IRUSR | S_IWUSR,
         }
 
 def include(module):
@@ -95,7 +97,7 @@ def _chown(path, status, owner, group):
     if uid != status.st_uid or gid != status.st_gid:
         logging.info("chowning %s:%s %s", owner, group, path)
         if not __muppet__['_dryrun']:
-            os.chown(path, uid, gid)
+            os.chown(expanduser(path), uid, gid)
         return True
     else:
         return False
@@ -108,7 +110,7 @@ def _chmod(path, status, mode):
     if mode != S_IMODE(status.st_mode):
         logging.info("chmoding %s %s", oct(mode), path)
         if not __muppet__['_dryrun']:
-            os.chmod(path, mode)
+            os.chmod(expanduser(path), mode)
         return True
     else:
         return False
@@ -119,7 +121,7 @@ def _diff(path, contents):
     '''
 
     try:
-        configfile = open(path)
+        configfile = open(expanduser(path))
         diff = list(difflib.unified_diff(configfile.read().splitlines(True),
                                          contents.splitlines(True),
                                          path, '<new>'))
@@ -147,32 +149,35 @@ def _backup(path):
 
     moved = '%s-%s~' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
     logging.info("backing up %s to %s", path, moved)
-    if exists(moved):
+    if exists(expanduser(moved)):
         logging.warning("%s already exists - aborting edit", moved)
         return False
     else:
         if not __muppet__['_dryrun']:
-            shutil.copy2(path, moved) # Will dereference before copying
+            # Will dereference before copying
+            shutil.copy2(expanduser(path), moved)
         return True
 
-def _edit(path, contents):
+def _edit(scope, path, contents):
     '''
     Edit config file
     '''
 
     logging.info("editing %s", path)
     if not __muppet__['_dryrun']:
-        configfile = open(path, 'w')
+        configfile = open(expanduser(path), 'w')
         configfile.write(contents)
         configfile.close()
 
     logging.info("copying stat to %s", path)
     if not __muppet__['_dryrun']:
         # Will dereference before copying stat
-        shutil.copystat(FILES % (__muppet__['_directory'], path[1:]), path)
+        shutil.copystat(scope % (__muppet__['_directory'], \
+                                 path.split('/', 1)[1]),
+                        expanduser(path))
 
-def _contents(path, verbatim):
-    localpath = FILES % (__muppet__['_directory'], path[1:])
+def _contents(scope, path, verbatim):
+    localpath = scope % (__muppet__['_directory'], path.split('/', 1)[1])
 
     if verbatim:
         configfile = open(localpath)
@@ -183,6 +188,12 @@ def _contents(path, verbatim):
 
     return contents
 
+def _scope(owner, path):
+    if path[0] == '~':
+        return USER, '~%s%s' % (owner, path[1:])
+    else:
+        return ROOT, path
+
 def edit(path, owner, group, mode, verbatim=True):
     '''
     Edit config file with template
@@ -190,30 +201,33 @@ def edit(path, owner, group, mode, verbatim=True):
 
     change = False
 
-    if islink(path):
+    # Userwide config?
+    scope, path = _scope(owner, path)
+
+    if islink(expanduser(path)):
         # If our config file template maps to a symlink, we're on for a lot of
         # confusion, so let's not allow this
         logging.warning(WARNLINK, path)
         return
 
     # Compile config file contents
-    contents = _contents(path, verbatim)
+    contents = _contents(scope, path, verbatim)
 
     # Diff
     diff = _diff(path, contents)
 
     if diff:
         # Back up config file
-        if exists(path) and not _backup(path):
+        if exists(expanduser(path)) and not _backup(path):
             return
 
         # Edit config file
-        _edit(path, contents)
+        _edit(scope, path, contents)
         change = True
 
     # Change attributes
-    if exists(path):
-        status = os.stat(path)
+    if exists(expanduser(path)):
+        status = os.stat(expanduser(path))
 
         # Change owner and group
         change |= _chown(path, status, owner, group)
@@ -251,7 +265,7 @@ def visudo(filename, verbatim=True):
     path = '%s/%s' % (SUDOERSD, filename)
 
     # Compile config file contents
-    contents = _contents(path, verbatim)
+    contents = _contents(ROOT, path, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -274,7 +288,7 @@ def visudo(filename, verbatim=True):
                 lockfile = os.open(path + '.tmp', os.O_CREAT | os.O_EXCL)
 
                 # Edit sudoers file
-                _edit(path, contents)
+                _edit(ROOT, path, contents)
 
                 # Remove lockfile
                 os.close(lockfile)
