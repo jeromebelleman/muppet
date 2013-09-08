@@ -4,12 +4,12 @@
 Common configuration options
 '''
 
-import os, sys
+import os
 from os.path import expanduser, exists, islink
 import pwd, grp
 from stat import S_IMODE, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IROTH
 from datetime import datetime
-from subprocess import Popen, call, PIPE
+from subprocess import Popen, PIPE
 import logging
 import difflib
 import shutil
@@ -38,6 +38,10 @@ def include(module):
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
 
 def _messages(proc):
+    '''
+    Log messages
+    '''
+
     # http://stackoverflow.com/questions/12270645
     while True:
         readies = select([proc.stdout.fileno(), proc.stderr.fileno()], [], [])
@@ -177,6 +181,10 @@ def _edit(scope, path, contents):
                         expanduser(path))
 
 def _contents(scope, path, verbatim):
+    '''
+    Compile config file contents
+    '''
+
     localpath = scope % (__muppet__['_directory'], path.split('/', 1)[1])
 
     if verbatim:
@@ -189,6 +197,10 @@ def _contents(scope, path, verbatim):
     return contents
 
 def _scope(owner, path):
+    '''
+    Decide between systemwide and userwide scopes
+    '''
+
     if path[0] == '~':
         return USER, '~%s%s' % (owner, path[1:])
     else:
@@ -245,6 +257,10 @@ def isjustinstalled():
     return not exists(__muppet__['_directory'] + '/notjustinstalled')
 
 def notjustinstalled():
+    '''
+    Mark system as not just installed
+    '''
+
     if not __muppet__['_dryrun']:
         open(__muppet__['_directory'] + '/notjustinstalled', 'w').close()
 
@@ -298,8 +314,8 @@ def visudo(filename, verbatim=True):
             else:
                 logging.warning(err.strip())
 
-        except OSError, e:
-            if e == errno.EEXIST:
+        except OSError, exc:
+            if exc == errno.EEXIST:
                 logging.warning("%s busy - aborting edit", path)
 
     # Change attributes
@@ -311,6 +327,8 @@ def visudo(filename, verbatim=True):
 
         # Change mode
         change |= _chmod(path, status, MODES['-r--r-----'])
+
+    return change
 
 __muppet__ = {
               'include':           include,
