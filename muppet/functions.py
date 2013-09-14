@@ -211,6 +211,8 @@ def edit(path, owner, group, mode, verbatim=True):
     Edit config file with template
     '''
 
+    # TODO Create necessary directories for config files
+
     change = False
 
     # Userwide config?

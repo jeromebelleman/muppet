@@ -19,7 +19,8 @@ def applyconf(args):
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
-    muppet.functions.__muppet__['users'] = args.users
+    muppet.functions.__muppet__['users'] = \
+        [(pair.split(':')[0], pair.split(':')[1]) for pair in args.users]
 
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())
