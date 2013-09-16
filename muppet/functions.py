@@ -18,9 +18,8 @@ from select import select
 
 from mako.template import Template
 
-WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting edit"
+WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 ROOT = '%s/files/root/%s'
-USER = '%s/files/user/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
 MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
@@ -162,7 +161,7 @@ def _backup(path):
             shutil.copy2(expanduser(path), moved)
         return True
 
-def _edit(scope, path, contents):
+def _edit(localpath, path, contents):
     '''
     Edit config file
     '''
@@ -176,16 +175,12 @@ def _edit(scope, path, contents):
     logging.info("copying stat to %s", path)
     if not __muppet__['_dryrun']:
         # Will dereference before copying stat
-        shutil.copystat(scope % (__muppet__['_directory'], \
-                                 path.split('/', 1)[1]),
-                        expanduser(path))
+        shutil.copystat(localpath, expanduser(path))
 
-def _contents(scope, path, verbatim):
+def _contents(localpath, verbatim):
     '''
     Compile config file contents
     '''
-
-    localpath = scope % (__muppet__['_directory'], path.split('/', 1)[1])
 
     if verbatim:
         configfile = open(localpath)
@@ -196,27 +191,74 @@ def _contents(scope, path, verbatim):
 
     return contents
 
-def _scope(owner, path):
+def _mkdir(localpath, path):
     '''
-    Decide between systemwide and userwide scopes
+    Make directory
     '''
 
-    if path[0] == '~':
-        return USER, '~%s%s' % (owner, path[1:])
+    logging.info("making directory %s", path)
+    if not __muppet__['_dryrun']:
+        os.mkdir(path)
+
+    logging.info("copying stat to %s", path)
+    if not __muppet__['_dryrun']:
+        # Will dereference before copying stat
+        shutil.copystat(localpath, expanduser(path))
+
+def mkdir(path, owner, group, mode, userwide=False):
+    '''
+    Make directory and set attributes
+    '''
+
+    change = False
+
+    # Get local path 
+    localpath = _localpath(path, userwide)
+
+    if islink(expanduser(path)):
+        # If this directory maps to a symlink, we're on for a lot of confusion,
+        # so let's not allow this
+        logging.warning(WARNLINK, path)
+        return
+
+    # Make directory
+    if not os.path.isdir(path):
+        _mkdir(localpath, path)
+        change = True
+
+    # Change attributes
+    if exists(expanduser(path)):
+        status = os.stat(expanduser(path))
+
+        # Change owner and group
+        change |= _chown(path, status, owner, group)
+
+        # Change mode
+        change |= _chmod(path, status, mode)
+
+    return change
+
+def _localpath(path, userwide):
+    '''
+    Get local path
+    '''
+
+    if userwide:
+        localpath = '/files/user' + expanduser(path)[len(expanduser(userwide)):]
     else:
-        return ROOT, path
+        localpath = '/files/root' + path
 
-def edit(path, owner, group, mode, verbatim=True):
+    return __muppet__['_directory'] + localpath
+
+def edit(path, owner, group, mode, verbatim=True, userwide=False):
     '''
     Edit config file with template
     '''
 
-    # TODO Create necessary directories for config files
-
     change = False
 
-    # Userwide config?
-    scope, path = _scope(owner, path)
+    # Get local path 
+    localpath = _localpath(path, userwide)
 
     if islink(expanduser(path)):
         # If our config file template maps to a symlink, we're on for a lot of
@@ -225,7 +267,7 @@ def edit(path, owner, group, mode, verbatim=True):
         return
 
     # Compile config file contents
-    contents = _contents(scope, path, verbatim)
+    contents = _contents(localpath, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -236,7 +278,7 @@ def edit(path, owner, group, mode, verbatim=True):
             return
 
         # Edit config file
-        _edit(scope, path, contents)
+        _edit(localpath, path, contents)
         change = True
 
     # Change attributes
@@ -283,7 +325,7 @@ def visudo(filename, verbatim=True):
     path = '%s/%s' % (SUDOERSD, filename)
 
     # Compile config file contents
-    contents = _contents(ROOT, path, verbatim)
+    contents = _contents(ROOT, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -336,6 +378,7 @@ __muppet__ = {
               'include':           include,
               'run':               run,
               'edit':              edit,
+              'mkdir':             mkdir,
               'visudo':            visudo,
               'install':           install,
               'purge':             purge,
