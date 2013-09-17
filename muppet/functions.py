@@ -23,7 +23,9 @@ ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
 MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+         '-rw-------': S_IRUSR | S_IWUSR,
          '-rwxr--r--': S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IROTH,
+         '-rwx------': S_IRUSR | S_IWUSR | S_IXUSR,
          '-r--r-----': S_IRUSR | S_IRGRP,
          '-r-xr--r--': S_IRUSR | S_IXUSR | S_IRGRP | S_IROTH,
          '-rw-------': S_IRUSR | S_IWUSR,
@@ -324,8 +326,11 @@ def visudo(filename, verbatim=True):
 
     path = '%s/%s' % (SUDOERSD, filename)
 
+    # Get local path 
+    localpath = _localpath(path, False)
+
     # Compile config file contents
-    contents = _contents(ROOT, verbatim)
+    contents = _contents(localpath, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -348,7 +353,7 @@ def visudo(filename, verbatim=True):
                 lockfile = os.open(path + '.tmp', os.O_CREAT | os.O_EXCL)
 
                 # Edit sudoers file
-                _edit(ROOT, path, contents)
+                _edit(localpath, path, contents)
 
                 # Remove lockfile
                 os.close(lockfile)

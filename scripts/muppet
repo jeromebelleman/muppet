@@ -20,11 +20,13 @@ def applyconf(args):
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
     try:
-        muppet.functions.__muppet__['users'] = \
+        muppet.functions.users = \
             [(pair.split(':')[0], pair.split(':')[1]) for pair in args.users]
     except IndexError:
         logging.warning("Invalid user:group specification - ignoring")
         muppet.functions.__muppet__['users'] = []
+        muppet.functions.users = []
+    muppet.functions.__muppet__['users'] = muppet.functions.users
 
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())
