@@ -7,7 +7,7 @@ Common configuration options
 import os
 from os.path import expanduser, exists, islink
 import pwd, grp
-from stat import S_IMODE, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IROTH
+import stat
 from datetime import datetime
 from subprocess import Popen, PIPE
 import logging
@@ -22,14 +22,8 @@ WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
-MODES = {'-rw-r--r--': S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
-         '-rw-------': S_IRUSR | S_IWUSR,
-         '-rwxr--r--': S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IROTH,
-         '-rwx------': S_IRUSR | S_IWUSR | S_IXUSR,
-         '-r--r-----': S_IRUSR | S_IRGRP,
-         '-r-xr--r--': S_IRUSR | S_IXUSR | S_IRGRP | S_IROTH,
-         '-rw-------': S_IRUSR | S_IWUSR,
-        }
+MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
+         stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
 
 def include(module):
     '''
@@ -107,12 +101,21 @@ def _chown(path, status, owner, group):
     else:
         return False
 
-def _chmod(path, status, mode):
+def _chmod(path, status, modestr):
     '''
     Change mode
     '''
 
-    if mode != S_IMODE(status.st_mode):
+    # Translate a human-readable mode into a machine-readable one
+    if len(modestr) != 10:
+        logging.warning("invalid %s mode - aborting chmod" % modestr)
+        return False
+    mode = 0
+    for i, char in enumerate(modestr[1:]):
+        if char != '-':
+            mode |= MODES[i]
+
+    if mode != stat.S_IMODE(status.st_mode):
         logging.info("chmoding %s %s", oct(mode), path)
         if not __muppet__['_dryrun']:
             os.chmod(expanduser(path), mode)
@@ -207,7 +210,7 @@ def _mkdir(localpath, path):
         # Will dereference before copying stat
         shutil.copystat(localpath, expanduser(path))
 
-def mkdir(path, owner, group, mode, userwide=False):
+def mkdir(path, owner, group, mode):
     '''
     Make directory and set attributes
     '''
@@ -215,7 +218,7 @@ def mkdir(path, owner, group, mode, userwide=False):
     change = False
 
     # Get local path 
-    localpath = _localpath(path, userwide)
+    localpath = _localpath(path)
 
     if islink(expanduser(path)):
         # If this directory maps to a symlink, we're on for a lot of confusion,
@@ -240,19 +243,22 @@ def mkdir(path, owner, group, mode, userwide=False):
 
     return change
 
-def _localpath(path, userwide):
+def _localpath(path):
     '''
     Get local path
     '''
 
-    if userwide:
-        localpath = '/files/user' + expanduser(path)[len(expanduser(userwide)):]
+    for entry in pwd.getpwall():
+        if entry[5] != '/' and expanduser(path).startswith(entry[5]):
+            localpath = '/files/user' + expanduser(path)[len(entry[5]):]
+            break
     else:
         localpath = '/files/root' + path
 
+
     return __muppet__['_directory'] + localpath
 
-def edit(path, owner, group, mode, verbatim=True, userwide=False):
+def edit(path, owner, group, mode, verbatim=True):
     '''
     Edit config file with template
     '''
@@ -260,7 +266,7 @@ def edit(path, owner, group, mode, verbatim=True, userwide=False):
     change = False
 
     # Get local path 
-    localpath = _localpath(path, userwide)
+    localpath = _localpath(path)
 
     if islink(expanduser(path)):
         # If our config file template maps to a symlink, we're on for a lot of
@@ -327,7 +333,7 @@ def visudo(filename, verbatim=True):
     path = '%s/%s' % (SUDOERSD, filename)
 
     # Get local path 
-    localpath = _localpath(path, False)
+    localpath = _localpath(path)
 
     # Compile config file contents
     contents = _contents(localpath, verbatim)
@@ -375,7 +381,7 @@ def visudo(filename, verbatim=True):
         change |= _chown(path, status, 'root', 'root')
 
         # Change mode
-        change |= _chmod(path, status, MODES['-r--r-----'])
+        change |= _chmod(path, status, '-r--r-----')
 
     return change
 
