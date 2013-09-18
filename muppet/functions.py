@@ -39,16 +39,24 @@ def _messages(proc):
 
     # http://stackoverflow.com/questions/12270645
     while True:
+        # Has the child exited yet?
+        returncode = proc.poll()
+        if returncode != None:
+            return returncode
+
+        # Check if there's data ready
         readies = select([proc.stdout.fileno(), proc.stderr.fileno()], [], [])
 
+        # Write data
         for ready in readies[0]:
             if ready == proc.stdout.fileno():
-                logging.debug(proc.stdout.readline().strip())
+                line = proc.stdout.readline().strip()
+                if line:
+                    logging.debug(line)
             elif ready == proc.stderr.fileno():
-                logging.warning(proc.stdout.readline().strip())
-
-        if proc.poll() != None:
-            break
+                line = proc.stderr.readline().strip()
+                if line:
+                    logging.warning(line)
 
 def run(command):
     '''
@@ -65,7 +73,7 @@ def _aptget(command, args, dryrun):
     Run apt-get
     '''
 
-    cmd = "DEBIAN_FRONTEND=noninteractive apt-get -qy %s%s %s" % \
+    cmd = "DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -qy %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.info(cmd)
     proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
@@ -85,6 +93,30 @@ def purge(*args):
     '''
 
     _aptget('purge', args, __muppet__['_dryrun'])
+
+def adduser(user, password, shell):
+    '''
+    Add user
+    '''
+
+    # Create user without password, preventing him from logging in
+    cmd = ['/usr/sbin/useradd', '-m', user, '-s', shell]
+    logging.info(' '.join(cmd))
+    if not __muppet__['_dryrun']:
+        proc = Popen(cmd, stderr=PIPE)
+        _, err = proc.communicate()
+        for line in err.splitlines():
+            logging.warning(line)
+
+    # Set encrypted password, allowing him to log in
+    if proc.returncode == 0:
+        cmd = ['/usr/sbin/chpasswd', '-e']
+        logging.info(' '.join(cmd))
+        if not __muppet__['_dryrun']:
+            proc = Popen(cmd, stdin=PIPE, stderr=PIPE)
+            _, err = proc.communicate('%s:%s' % (user, password))
+            for line in err.splitlines():
+                logging.warning(line)
 
 def _chown(path, status, owner, group):
     '''
@@ -393,6 +425,7 @@ __muppet__ = {
               'visudo':            visudo,
               'install':           install,
               'purge':             purge,
+              'adduser':           adduser,
               'isjustinstalled':   isjustinstalled,
               'notjustinstalled':  notjustinstalled,
               'islaptop':          islaptop,

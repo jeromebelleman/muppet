@@ -11,11 +11,38 @@ import logging
 
 import muppet.functions
 
+# TODO Remove YAML files
+# TODO Software repositories
+# TODO Config somewhere in /var?
+
+def encrypt(args):
+    import crypt
+    import getpass
+    import uuid
+    # http://serverfault.com/questions/330069
+    print crypt.crypt(getpass.getpass(), '$6$%s' % uuid.uuid4())
+
 def applyconf(args):
     '''
     Apply configuration
     '''
             
+    # Messages
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    if args.logfile:
+        handler = logging.FileHandler(args.logfile)
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    # TODO Harmonise
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
@@ -38,36 +65,30 @@ def main():
 
     # Arguments
     parser = ArgumentParser(description="manage configurations")
-    parser.add_argument('-d', '--directory', help="configuration directory",
-                        default='~/.muppet')
-    parser.add_argument('--dryrun', '-n', action='store_true',
-                        help="don't perform any change")
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help="be more verbose")
-    parser.add_argument('--logfile', '-l',
-                        help="write messages to log file too")
-    parser.add_argument('--users', '-u', nargs='+', default=[],
-                        help="user:group pairs to apply the userwide config to")
+    subparsers = parser.add_subparsers()
+
+    applyparser = subparsers.add_parser("apply", help="apply configuration")
+    applyparser.add_argument('-d', '--directory',
+                             help="configuration directory",
+                             default='~/.muppet')
+    applyparser.add_argument('--dryrun', '-n', action='store_true',
+                             help="don't perform any change")
+    applyparser.add_argument('--verbose', '-v', action='store_true',
+                             help="be more verbose")
+    applyparser.add_argument('--logfile', '-l',
+                             help="write messages to log file too")
+    help = "user:group pairs to apply the userwide config to"
+    applyparser.add_argument('--users', '-u', nargs='+', default=[], help=help)
+    applyparser.set_defaults(func=applyconf)
+
+    encryptparser = subparsers.add_parser("encrypt", help="encrypt password")
+    encryptparser.set_defaults(func=encrypt)
+
     args = parser.parse_args()
-
-    # Messages
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
-
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    if args.logfile:
-        handler = logging.FileHandler(args.logfile)
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
 
     # Run
     try:
-        applyconf(args)
+        args.func(args)
     except IOError, exc:
         logging.error(exc)
 
