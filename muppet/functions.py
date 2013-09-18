@@ -25,6 +25,13 @@ SUDOERSD = '/etc/sudoers.d'
 MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
          stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
 
+def resources():
+    '''
+    Return resources directory
+    '''
+
+    return '%s/resources' % __muppet__['_directory']
+
 def users():
     '''
     Get users involved in configuration
@@ -121,14 +128,13 @@ def adduser(user, password, shell):
             logging.warning(line)
 
     # Set encrypted password, allowing him to log in
-    if proc.returncode == 0:
-        cmd = ['/usr/sbin/chpasswd', '-e']
-        logging.info(' '.join(cmd))
-        if not __muppet__['_dryrun']:
-            proc = Popen(cmd, stdin=PIPE, stderr=PIPE)
-            _, err = proc.communicate('%s:%s' % (user, password))
-            for line in err.splitlines():
-                logging.warning(line)
+    cmd = ['/usr/sbin/chpasswd', '-e']
+    logging.info(' '.join(cmd))
+    if not __muppet__['_dryrun'] and proc.returncode == 0:
+        proc = Popen(cmd, stdin=PIPE, stderr=PIPE)
+        _, err = proc.communicate('%s:%s' % (user, password))
+        for line in err.splitlines():
+            logging.warning(line)
 
 def _chown(path, status, owner, group):
     '''
@@ -247,7 +253,7 @@ def _mkdir(localpath, path):
 
     logging.info("making directory %s", path)
     if not __muppet__['_dryrun']:
-        os.mkdir(path)
+        os.mkdir(expanduser(path))
 
     logging.info("copying stat to %s", path)
     if not __muppet__['_dryrun']:
@@ -271,7 +277,7 @@ def mkdir(path, owner, group, mode):
         return
 
     # Make directory
-    if not os.path.isdir(path):
+    if not os.path.isdir(expanduser(path)):
         _mkdir(localpath, path)
         change = True
 
@@ -439,6 +445,7 @@ __muppet__ = {
               'purge':             purge,
               'adduser':           adduser,
               'users':             users,
+              'resources':         resources,
               'isjustinstalled':   isjustinstalled,
               'notjustinstalled':  notjustinstalled,
               'islaptop':          islaptop,
