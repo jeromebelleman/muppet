@@ -13,8 +13,13 @@ import muppet.functions
 
 # TODO Software repositories
 # TODO Config somewhere in /var?
+# TODO Improve backtrace reporting from templates
 
-def encrypt(args):
+def encrypt(_):
+    '''
+    Encrypt password
+    '''
+
     import crypt
     import getpass
     import uuid
@@ -41,19 +46,12 @@ def applyconf(args):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    # TODO Harmonise
+    # Set variables
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
-    try:
-        muppet.functions.users = \
-            [(pair.split(':')[0], pair.split(':')[1]) for pair in args.users]
-    except IndexError:
-        logging.warning("Invalid user:group specification - ignoring")
-        muppet.functions.__muppet__['users'] = []
-        muppet.functions.users = []
-    muppet.functions.__muppet__['users'] = muppet.functions.users
-
+    muppet.functions.__muppet__['_users'] = args.users
+        
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())
 
@@ -76,8 +74,9 @@ def main():
                              help="be more verbose")
     applyparser.add_argument('--logfile', '-l',
                              help="write messages to log file too")
-    help = "user:group pairs to apply the userwide config to"
-    applyparser.add_argument('--users', '-u', nargs='+', default=[], help=help)
+    helpmsg = "user:group pairs to apply the userwide config to"
+    applyparser.add_argument('--users', '-u', nargs='+', default=[],
+                             help=helpmsg)
     applyparser.set_defaults(func=applyconf)
 
     encryptparser = subparsers.add_parser("encrypt", help="encrypt password")

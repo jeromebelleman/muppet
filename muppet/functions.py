@@ -25,6 +25,18 @@ SUDOERSD = '/etc/sudoers.d'
 MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
          stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
 
+def users():
+    '''
+    Get users involved in configuration
+    '''
+
+    try:
+        return [(pair.split(':')[0], pair.split(':')[1])
+                for pair in __muppet__['_users']]
+    except IndexError:
+        logging.warning("Invalid user:group specification - ignoring")
+        return []
+
 def include(module):
     '''
     Execute module with common globals
@@ -140,7 +152,7 @@ def _chmod(path, status, modestr):
 
     # Translate a human-readable mode into a machine-readable one
     if len(modestr) != 10:
-        logging.warning("invalid %s mode - aborting chmod" % modestr)
+        logging.warning("invalid %s mode - aborting chmod", modestr)
         return False
     mode = 0
     for i, char in enumerate(modestr[1:]):
@@ -426,6 +438,7 @@ __muppet__ = {
               'install':           install,
               'purge':             purge,
               'adduser':           adduser,
+              'users':             users,
               'isjustinstalled':   isjustinstalled,
               'notjustinstalled':  notjustinstalled,
               'islaptop':          islaptop,
