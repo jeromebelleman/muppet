@@ -192,14 +192,14 @@ def _diff(path, contents):
     except IOError:
         return True
 
-def _template(path):
+def _template(path, variables):
     '''
     Apply template
     '''
 
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
     tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
-    return tpt.render()
+    return tpt.render(**variables) if variables else tpt.render()
 
 def _backup(path):
     '''
@@ -261,7 +261,7 @@ def _edit(localpath, path, contents):
         # Will dereference before copying stat
         shutil.copystat(localpath, expanduser(path))
 
-def _contents(localpath, verbatim):
+def _contents(localpath, variables, verbatim):
     '''
     Compile config file contents
     '''
@@ -271,7 +271,7 @@ def _contents(localpath, verbatim):
         contents = configfile.read()
         configfile.close()
     else:
-        contents = _template(localpath)
+        contents = _template(localpath, variables)
 
     return contents
 
@@ -337,7 +337,7 @@ def _localpath(path):
 
     return __muppet__['_directory'] + localpath
 
-def edit(path, owner, group, mode, verbatim=True):
+def edit(path, owner, group, mode, variables=None, verbatim=True):
     '''
     Edit config file with template
     '''
@@ -354,7 +354,7 @@ def edit(path, owner, group, mode, verbatim=True):
         return False
 
     # Compile config file contents
-    contents = _contents(localpath, verbatim)
+    contents = _contents(localpath, variables, verbatim)
 
     # Diff
     diff = _diff(path, contents)
@@ -402,7 +402,7 @@ def islaptop():
 
     return len(os.listdir('/sys/class/power_supply'))
 
-def visudo(filename, verbatim=True):
+def visudo(filename, variables=None, verbatim=True):
     '''
     Edit sudoers
     '''
@@ -415,7 +415,7 @@ def visudo(filename, verbatim=True):
     localpath = _localpath(path)
 
     # Compile config file contents
-    contents = _contents(localpath, verbatim)
+    contents = _contents(localpath, variables, verbatim)
 
     # Diff
     diff = _diff(path, contents)
