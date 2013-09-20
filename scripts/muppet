@@ -8,6 +8,7 @@ import sys
 from os.path import expanduser
 from argparse import ArgumentParser
 import logging
+import datetime
 
 import muppet.functions
 
@@ -51,6 +52,7 @@ def applyconf(args):
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
     muppet.functions.__muppet__['_users'] = args.users
+    muppet.functions.__muppet__['_time'] = datetime.datetime.now()
         
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())

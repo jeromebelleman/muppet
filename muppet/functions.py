@@ -8,7 +8,6 @@ import os
 from os.path import expanduser, exists, islink
 import pwd, grp
 import stat
-from datetime import datetime
 from subprocess import Popen, PIPE
 import logging
 import difflib
@@ -55,6 +54,8 @@ def _messages(proc):
     '''
     Log messages
     '''
+
+    # FIXME apt-get messes up indents in stdout (not in files)
 
     # http://stackoverflow.com/questions/12270645
     while True:
@@ -205,16 +206,44 @@ def _backup(path):
     Backup config file
     '''
 
-    moved = '%s-%s~' % (path, datetime.now().strftime('%Y%m%d_%H%M%S'))
-    logging.info("backing up %s to %s", path, moved)
-    if exists(expanduser(moved)):
-        logging.warning("%s already exists - aborting edit", moved)
+    components = expanduser(path).split('/')
+
+    # Create backup directory
+    time = __muppet__['_time'].strftime('%Y%m%d_%H%M%S')
+    backupdir = '%s/backups/%s' % (__muppet__['_directory'], time)
+    if not exists(backupdir) and not __muppet__['_dryrun']:
+        os.makedirs(backupdir)
+
+    # Create local directories if needs be
+    for i, _ in enumerate(components[1:-1], 2):
+        localdir = '%s/%s' % (backupdir, '/'.join(components[1:i]))
+        if not exists(localdir) and not __muppet__['_dryrun']:
+            os.mkdir(localdir)
+
+    # Write file backups
+    logging.info("backing up %s to %s", path, localdir)
+    localpath = '%s/%s' % (localdir, components[-1])
+    if exists(localpath):
+        logging.warning("%s already exists - aborting edit", localpath)
         return False
     else:
         if not __muppet__['_dryrun']:
             # Will dereference before copying
-            shutil.copy2(expanduser(path), moved)
-        return True
+            shutil.copy2(expanduser(path), localpath)
+
+            status = os.stat(expanduser(path))
+            os.chown(localpath, status.st_uid, status.st_gid)
+
+    # Fix directory stats
+    for i, _ in enumerate(components[1:-1], 2):
+        localdir = '%s/%s' % (backupdir, '/'.join(components[1:i]))
+        if not __muppet__['_dryrun']:
+            shutil.copystat('/'.join(components[:i]), localdir)
+
+            status = os.stat('/'.join(components[:i]))
+            os.chown(localdir, status.st_uid, status.st_gid)
+
+    return True
 
 def _edit(localpath, path, contents):
     '''
@@ -322,7 +351,7 @@ def edit(path, owner, group, mode, verbatim=True):
         # If our config file template maps to a symlink, we're on for a lot of
         # confusion, so let's not allow this
         logging.warning(WARNLINK, path)
-        return
+        return False
 
     # Compile config file contents
     contents = _contents(localpath, verbatim)
@@ -333,7 +362,7 @@ def edit(path, owner, group, mode, verbatim=True):
     if diff:
         # Back up config file
         if exists(expanduser(path)) and not _backup(path):
-            return
+            return False
 
         # Edit config file
         _edit(localpath, path, contents)
