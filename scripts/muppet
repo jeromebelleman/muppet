@@ -15,6 +15,7 @@ import muppet.functions
 # TODO Software repositories
 # TODO Config somewhere in /var?
 # TODO Improve backtrace reporting from templates
+# TODO Warn against running in X?
 
 def encrypt(_):
     '''
@@ -54,8 +55,12 @@ def applyconf(args):
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
         
+    logging.info("Beginning run")
+
     execfile(expanduser(args.directory) + '/index.py',
              muppet.functions.__muppet__.copy())
+
+    logging.info("Ending run")
 
 def main():
     '''
@@ -87,10 +92,7 @@ def main():
     args = parser.parse_args()
 
     # Run
-    try:
-        args.func(args)
-    except IOError, exc:
-        logging.error(exc)
+    args.func(args)
 
 if __name__ == '__main__':
     sys.exit(main())
