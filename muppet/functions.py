@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# coding=utf-8
 
 '''
 Common configuration options
@@ -11,6 +12,7 @@ import stat
 from subprocess import Popen, PIPE
 import logging
 import difflib
+import re
 import shutil
 import errno
 from select import select
@@ -23,6 +25,8 @@ IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
 MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
          stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
+TIMEFMT = '%Y%m%d_%H%M%S'
+RERES = re.compile('^mode "(\d+)x(\d+).*"$')
 
 def resources():
     '''
@@ -49,6 +53,17 @@ def include(module):
     '''
 
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
+
+def resolution():
+    proc = Popen(['/bin/fbset'], stdout=PIPE)
+    for line in proc.stdout:
+        match = RERES.match(line)
+        if match:
+            width, height = match.groups()
+            return int(width), int(height)
+    else:
+        logging.warning("Couldn't get resolution - defaulting to 1024×768")
+        return 1024, 768
 
 def _messages(proc):
     '''
@@ -209,7 +224,7 @@ def _backup(path):
     components = expanduser(path).split('/')
 
     # Create backup directory
-    time = __muppet__['_time'].strftime('%Y%m%d_%H%M%S')
+    time = __muppet__['_time'].strftime(TIMEFMT)
     backupdir = '%s/backups/%s' % (__muppet__['_directory'], time)
     if not exists(backupdir) and not __muppet__['_dryrun']:
         os.makedirs(backupdir)
@@ -475,6 +490,7 @@ __muppet__ = {
               'adduser':           adduser,
               'users':             users,
               'resources':         resources,
+              'resolution':        resolution,
               'isjustinstalled':   isjustinstalled,
               'notjustinstalled':  notjustinstalled,
               'islaptop':          islaptop,
