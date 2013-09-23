@@ -167,27 +167,32 @@ def _chown(path, status, owner, group):
     else:
         return False
 
-def _chmod(path, status, modestr):
+def chmod(path, modestr):
     '''
     Change mode
     '''
 
-    # Translate a human-readable mode into a machine-readable one
-    if len(modestr) != 10:
-        logging.warning("invalid %s mode - aborting chmod", modestr)
-        return False
-    mode = 0
-    for i, char in enumerate(modestr[1:]):
-        if char != '-':
-            mode |= MODES[i]
+    try:
+        status = os.stat(expanduser(path))
 
-    if mode != stat.S_IMODE(status.st_mode):
-        logging.info("chmoding %s %s", oct(mode), path)
-        if not __muppet__['_dryrun']:
-            os.chmod(expanduser(path), mode)
-        return True
-    else:
-        return False
+        # Translate a human-readable mode into a machine-readable one
+        if len(modestr) != 10:
+            logging.warning("invalid %s mode - aborting chmod", modestr)
+            return False
+        mode = 0
+        for i, char in enumerate(modestr[1:]):
+            if char != '-':
+                mode |= MODES[i]
+
+        if mode != stat.S_IMODE(status.st_mode):
+            logging.info("chmoding %s %s", oct(mode), path)
+            if not __muppet__['_dryrun']:
+                os.chmod(expanduser(path), mode)
+            return True
+    except OSError, exc:
+        logging.warning(exc)
+
+    return False
 
 def _diff(path, contents):
     '''
@@ -314,26 +319,29 @@ def mkdir(path, owner, group, mode):
     # Get local path 
     localpath = _localpath(path)
 
-    if islink(expanduser(path)):
-        # If this directory maps to a symlink, we're on for a lot of confusion,
-        # so let's not allow this
-        logging.warning(WARNLINK, path)
-        return
+    try:
+        if islink(expanduser(path)):
+            # If this directory maps to a symlink, we're on for a lot of
+            # confusion, so let's not allow this
+            logging.warning(WARNLINK, path)
+            return False
 
-    # Make directory
-    if not os.path.isdir(expanduser(path)):
-        _mkdir(localpath, path)
-        change = True
+        # Make directory
+        if not os.path.isdir(expanduser(path)):
+            _mkdir(localpath, path)
+            change = True
 
-    # Change attributes
-    if exists(expanduser(path)):
-        status = os.stat(expanduser(path))
+        # Change attributes
+        if exists(expanduser(path)):
+            status = os.stat(expanduser(path))
 
-        # Change owner and group
-        change |= _chown(path, status, owner, group)
+            # Change owner and group
+            change |= _chown(path, status, owner, group)
 
-        # Change mode
-        change |= _chmod(path, status, mode)
+            # Change mode
+            change |= chmod(path, mode)
+    except OSError, exc:
+        logging.warning(exc)
 
     return change
 
@@ -368,30 +376,34 @@ def edit(path, owner, group, mode, variables=None, verbatim=True):
         logging.warning(WARNLINK, path)
         return False
 
-    # Compile config file contents
-    contents = _contents(localpath, variables, verbatim)
+    try:
+        # Compile config file contents
+        contents = _contents(localpath, variables, verbatim)
 
-    # Diff
-    diff = _diff(path, contents)
+        # Diff
+        diff = _diff(path, contents)
 
-    if diff:
-        # Back up config file
-        if exists(expanduser(path)) and not _backup(path):
-            return False
+        if diff:
+            # Back up config file
+            if exists(expanduser(path)) and not _backup(path):
+                return False
 
-        # Edit config file
-        _edit(localpath, path, contents)
-        change = True
+            # Edit config file
+            _edit(localpath, path, contents)
+            change = True
 
-    # Change attributes
-    if exists(expanduser(path)):
-        status = os.stat(expanduser(path))
+        # Change attributes
+        if exists(expanduser(path)):
+            status = os.stat(expanduser(path))
 
-        # Change owner and group
-        change |= _chown(path, status, owner, group)
+            # Change owner and group
+            change |= _chown(path, status, owner, group)
 
-        # Change mode
-        change |= _chmod(path, status, mode)
+            # Change mode
+            change |= chmod(path, mode)
+    except IOError, exc:
+        logging.warning(exc)
+        return False
 
     return change
         
@@ -475,7 +487,7 @@ def visudo(filename, variables=None, verbatim=True):
         change |= _chown(path, status, 'root', 'root')
 
         # Change mode
-        change |= _chmod(path, status, '-r--r-----')
+        change |= chmod(path, '-r--r-----')
 
     return change
 
@@ -489,6 +501,7 @@ __muppet__ = {
               'purge':             purge,
               'adduser':           adduser,
               'users':             users,
+              'chmod':             chmod,
               'resources':         resources,
               'resolution':        resolution,
               'isjustinstalled':   isjustinstalled,
