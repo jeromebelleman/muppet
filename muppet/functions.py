@@ -26,7 +26,8 @@ SUDOERSD = '/etc/sudoers.d'
 MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
          stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
 TIMEFMT = '%Y%m%d_%H%M%S'
-RERES = re.compile('^mode "(\d+)x(\d+).*"$')
+REFBSET = re.compile('^mode "(\d+)x(\d+).*"$')
+REXRANDR = re.compile('^\s+(\d+)x(\d+).*$')
 
 def resources():
     '''
@@ -55,15 +56,38 @@ def include(module):
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
 
 def resolution():
-    proc = Popen(['/bin/fbset'], stdout=PIPE)
+    '''
+    Get screen resolution
+    '''
+
+    # Try with xrandr
+    cmd = ['/usr/bin/xrandr']
+    logging.info("Getting screen resolution from %s" % ' '.join(cmd))
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
-        match = RERES.match(line)
+        match = REXRANDR.match(line)
         if match:
             width, height = match.groups()
             return int(width), int(height)
-    else:
-        logging.warning("Couldn't get resolution - defaulting to 1024×768")
-        return 1024, 768
+    logging.warning("Couldn't get resolution from %s" % ' '.join(cmd))
+    for line in proc.stderr:
+        logging.warning(line.strip())
+
+    # Try with fbset
+    cmd = ['/bin/fbset']
+    logging.info("Getting screen resolution from %s instead" % ' '.join(cmd))
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    for line in proc.stdout:
+        match = REFBSET.match(line)
+        if match:
+            width, height = match.groups()
+            return int(width), int(height)
+    for line in proc.stderr:
+        logging.warning(line.strip())
+
+    # Default to sensible resolution
+    logging.warning("Couldn't get resolution - defaulting to 1024×768")
+    return 1024, 768
 
 def _messages(proc):
     '''

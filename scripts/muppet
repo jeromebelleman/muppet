@@ -4,7 +4,7 @@
 Manage configurations
 '''
 
-import sys
+import os, sys
 from os.path import expanduser
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
@@ -13,11 +13,12 @@ import datetime
 import muppet.functions
 
 # TODO Software repositories
-# TODO Config somewhere in /var?
 # TODO Improve backtrace reporting from templates
 # TODO Warn against running in X?
+# TODO Do without 'notjustinstalled' file
 
 DIR = '~/.muppet'
+LOGFMT = '%(asctime)s %(levelname)s %(message)s'
 
 def encrypt(_):
     '''
@@ -35,6 +36,14 @@ def applyconf(args):
     Apply configuration
     '''
             
+    pid = os.fork()
+    if pid != 0:
+        return
+
+    pid = os.fork()
+    if pid != 0:
+        return
+
     # Messages
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
@@ -46,7 +55,7 @@ def applyconf(args):
 
     if args.logfile:
         handler = logging.FileHandler(expanduser(args.logfile))
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        formatter = logging.Formatter(LOGFMT)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
