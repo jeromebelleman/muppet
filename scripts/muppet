@@ -6,7 +6,7 @@ Manage configurations
 
 import sys
 from os.path import expanduser
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
 import datetime
 
@@ -16,6 +16,8 @@ import muppet.functions
 # TODO Config somewhere in /var?
 # TODO Improve backtrace reporting from templates
 # TODO Warn against running in X?
+
+DIR = '~/.muppet'
 
 def encrypt(_):
     '''
@@ -43,7 +45,7 @@ def applyconf(args):
     logger.addHandler(handler)
 
     if args.logfile:
-        handler = logging.FileHandler(args.logfile)
+        handler = logging.FileHandler(expanduser(args.logfile))
         formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
@@ -68,25 +70,26 @@ def main():
     '''
 
     # Arguments
-    parser = ArgumentParser(description="manage configurations")
-    subparsers = parser.add_subparsers()
+    parser = ArgumentParser(description="manage configurations",)
+    subs = parser.add_subparsers()
 
-    applyparser = subparsers.add_parser("apply", help="apply configuration")
+    applyparser = subs.add_parser("apply", help="apply configuration",
+                                  formatter_class=ArgumentDefaultsHelpFormatter)
     applyparser.add_argument('-d', '--directory',
                              help="configuration directory",
-                             default='~/.muppet')
+                             default=DIR)
     applyparser.add_argument('--dryrun', '-n', action='store_true',
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
                              help="be more verbose")
-    applyparser.add_argument('--logfile', '-l',
+    applyparser.add_argument('--logfile', '-l', default='%s/log' % DIR,
                              help="write messages to log file too")
     helpmsg = "user:group pairs to apply the userwide config to"
     applyparser.add_argument('--users', '-u', nargs='+', default=[],
                              help=helpmsg)
     applyparser.set_defaults(func=applyconf)
 
-    encryptparser = subparsers.add_parser("encrypt", help="encrypt password")
+    encryptparser = subs.add_parser("encrypt", help="encrypt password")
     encryptparser.set_defaults(func=encrypt)
 
     args = parser.parse_args()
