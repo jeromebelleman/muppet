@@ -127,6 +127,23 @@ def run(command):
         proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _messages(proc)
 
+def _getselections():
+    '''
+    Return set of installed packages
+    '''
+
+    # Get set of already-installed packages
+    # ubuntu list packages which are installed
+    # -> http://askubuntu.com/questions/17823/how-to-list-all-installed-packages
+    proc = Popen(['dpkg', '--get-selections'], stdout=PIPE)
+    installed = set()
+    for line in proc.stdout:
+        # Get rid of possible ':amd64'-like suffixes
+        # Never seen a package name with ':' in 40k+ packages
+        installed.add(line.split()[0].rsplit(':', 1)[0])
+
+    return installed
+
 def _aptget(command, args, dryrun):
     '''
     Run apt-get
@@ -143,15 +160,20 @@ def install(*args):
     Run apt-get install
     '''
 
-    # TODO Compare with a list from apt-cache pkgnames
-    _aptget('install', args, __muppet__['_dryrun'])
+    # Install packages if needs be
+    toinstall = set(args) - _getselections()
+    if toinstall:
+        _aptget('install', toinstall, __muppet__['_dryrun'])
  
 def purge(*args):
     '''
     Run apt-get purge
     '''
 
-    _aptget('purge', args, __muppet__['_dryrun'])
+    # Remove packages if needs be
+    topurge = set(args) & _getselections()
+    if topurge:
+        _aptget('purge', topurge, __muppet__['_dryrun'])
 
 def adduser(user, password, shell):
     '''
