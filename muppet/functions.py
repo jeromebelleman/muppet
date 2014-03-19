@@ -28,6 +28,9 @@ MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
 TIMEFMT = '%Y%m%d_%H%M%S'
 REFBSET = re.compile('^mode "(\d+)x(\d+).*"$')
 REXRANDR = re.compile('^\s+(\d+)x(\d+).*$')
+REID = re.compile('''^uid=(?P<uid>\d+)\([^)]+\)[ ]
+                      gid=\d+\((?P<group>[^)]+)\)[ ]
+                      groups=(?P<groups>.+)$''', re.VERBOSE)
 
 def resources():
     '''
@@ -135,7 +138,7 @@ def _getselections():
     # Get set of already-installed packages
     # ubuntu list packages which are installed
     # -> http://askubuntu.com/questions/17823/how-to-list-all-installed-packages
-    proc = Popen(['dpkg', '--get-selections'], stdout=PIPE)
+    proc = Popen(['/usr/bin/dpkg', '--get-selections'], stdout=PIPE)
     installed = set()
     for line in proc.stdout:
         # Get rid of possible ':amd64'-like suffixes
@@ -197,6 +200,34 @@ def adduser(user, password, shell):
         _, err = proc.communicate('%s:%s' % (user, password))
         for line in err.splitlines():
             logging.warning(line)
+
+def usermod(login, uid=None, group=None, groups=[]):
+    '''
+    Modify user account
+    '''
+
+    # Check user and groups
+    proc = Popen('id', stdout=PIPE)
+    match = REID.match(proc.stdout.next())
+    curuid = int(match.group('uid'))
+    curgid = match.group('group')
+    curgroups = set([grp.split('(')[1][:-1]
+                     for grp in match.group('groups').split(',')])
+
+    # Change user and groups if needs be
+    uid = ['-u', str(uid)] if uid and uid != curuid else []
+    group = ['-g', group] if group and group != curgid else []
+    groupstoadd = set(groups) - curgroups
+    groups = ['-a', '-G', ','.join(groupstoadd)] if groupstoadd else []
+
+    if uid or group or groups:
+        cmd = ['/usr/sbin/usermod'] + uid + group + groups + [login]
+        logging.info(' '.join(cmd))
+        if not __muppet__['_dryrun']:
+            proc = Popen(cmd, stderr=PIPE)
+            _, err = proc.communicate()
+            for line in err.splitlines():
+                logging.warning(line)
 
 def _chown(path, status, owner, group):
     '''
@@ -546,6 +577,7 @@ __muppet__ = {
               'install':           install,
               'purge':             purge,
               'adduser':           adduser,
+              'usermod':           usermod,
               'users':             users,
               'chmod':             chmod,
               'resources':         resources,
