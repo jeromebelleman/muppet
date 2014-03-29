@@ -31,6 +31,9 @@ REXRANDR = re.compile('^\s+(\d+)x(\d+).*$')
 REID = re.compile('''^uid=(?P<uid>\d+)\([^)]+\)[ ]
                       gid=\d+\((?P<group>[^)]+)\)[ ]
                       groups=(?P<groups>.+)$''', re.VERBOSE)
+REFIREWALL = re.compile('''^(?P<toport>\d+)/(?P<proto>\w+)[ ]+
+                            (?P<action>\w+)[ ]+
+                            (?P<fromhost>[\d\.]+/\d+)$''', re.VERBOSE)
 
 def resources():
     '''
@@ -57,6 +60,58 @@ def include(module):
     '''
 
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
+
+def firewall(*rules):
+    '''
+    Set up firewall
+    '''
+
+    # Check firewall status
+    STATUS, NOWHERE, RULES = range(3)
+    proc = Popen(['ufw', 'status'], stdout=PIPE, stderr=PIPE)
+    out, err = proc.communicate()
+
+    state = STATUS
+    currules = set()
+    for line in out.splitlines():
+        if not line:
+            continue
+        elif state == STATUS:
+            _, status = line.split()
+            state = NOWHERE
+        elif state == NOWHERE:
+            if line[:2] == '--': state = RULES
+        elif state == RULES:
+            match = REFIREWALL.match(line)
+            if match:
+                currules.add((match.group('action').lower(),
+                              match.group('proto'), match.group('fromhost'),
+                              match.group('toport')))
+            else:
+                logging.warn("Couldn't parse ufw status: %s" % line)
+
+    if proc.returncode:
+        logging.warn(err[7:-1])
+        return False
+
+    # Enable firewall settings if needs be
+    if status != 'active':
+        cmd = ['ufw', 'enable']
+        logging.info(' '.join(cmd))
+        if not __muppet__['_dryrun']:
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            _messages(proc)
+
+    # Change firewall settings if needs be
+    for rule in rules:
+        if rule not in currules:
+            action, proto, fromhost, toport = rule
+            cmd = ['ufw', action, 'proto', proto, 'from', fromhost, 'to',
+                   'any', 'port', toport]
+            logging.info(' '.join(cmd))
+            if not __muppet__['_dryrun']:
+                proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+                _messages(proc)
 
 def resolution():
     '''
@@ -207,7 +262,7 @@ def usermod(login, uid=None, group=None, groups=[]):
     '''
 
     # Check user and groups
-    proc = Popen('id', stdout=PIPE)
+    proc = Popen(['id', login], stdout=PIPE)
     match = REID.match(proc.stdout.next())
     curuid = int(match.group('uid'))
     curgid = match.group('group')
@@ -582,6 +637,7 @@ __muppet__ = {
               'chmod':             chmod,
               'resources':         resources,
               'resolution':        resolution,
+              'firewall':          firewall,
               'isjustinstalled':   isjustinstalled,
               'notjustinstalled':  notjustinstalled,
               'islaptop':          islaptop,
