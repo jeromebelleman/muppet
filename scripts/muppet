@@ -36,13 +36,14 @@ def applyconf(args):
     Apply configuration
     '''
             
-    pid = os.fork()
-    if pid != 0:
-        return
+    if args.daemonise:
+        pid = os.fork()
+        if pid != 0:
+            return
 
-    pid = os.fork()
-    if pid != 0:
-        return
+        pid = os.fork()
+        if pid != 0:
+            return
 
     # Messages
     logger = logging.getLogger()
@@ -96,6 +97,8 @@ def main():
     helpmsg = "user:group pairs to apply the userwide config to"
     applyparser.add_argument('--users', '-u', nargs='+', default=[],
                              help=helpmsg)
+    applyparser.add_argument('--daemonise', '-b', action='store_true',
+                             help="run in the background")
     applyparser.set_defaults(func=applyconf)
 
     encryptparser = subs.add_parser("encrypt", help="encrypt password")
