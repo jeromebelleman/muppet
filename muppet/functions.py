@@ -185,6 +185,22 @@ def run(command):
         proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _messages(proc)
 
+def _getmaintainer(maintainer):
+    '''
+    Return set of custom-built packages
+    '''
+
+    cmd = ['dpkg-query', '--show', '--showformat',
+           '${Package} ${Maintainer}\\n']
+    proc = Popen(cmd, stdout=PIPE)
+    maintained = set()
+    for line in proc.stdout:
+        pkg, mtr = line[:-1].split(None, 1)
+        if mtr == maintainer:
+            maintained.add(pkg)
+
+    return maintained
+
 def _getselections():
     '''
     Return set of installed packages
@@ -223,15 +239,17 @@ def install(*args):
     if toinstall:
         _aptget('install', toinstall, __muppet__['_dryrun'])
  
-def purge(*args):
+def purge(*args, **maintainer):
     '''
     Run apt-get purge
     '''
 
     # Remove packages if needs be
     topurge = set(args) & _getselections()
-    if topurge:
-        _aptget('purge', topurge, __muppet__['_dryrun'])
+    if 'maintainer' in maintainer:
+        topurge -= _getmaintainer(maintainer['maintainer'])
+
+    if topurge: _aptget('purge', topurge, __muppet__['_dryrun'])
 
 def adduser(user, password, shell):
     '''
