@@ -76,9 +76,11 @@ def applyconf(args):
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
         
     logging.info("Beginning run")
-
-    execfile(args.directory + '/index.py', muppet.functions.__muppet__.copy())
-
+    try:
+        execfile(args.directory + '/index.py',
+                 muppet.functions.__muppet__.copy())
+    except SystemExit, exc:
+        logging.warning("Exited: %s", exc)
     logging.info("Ending run")
 
 def main():
