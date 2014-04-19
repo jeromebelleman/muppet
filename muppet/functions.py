@@ -31,9 +31,9 @@ REXRANDR = re.compile('^\s+(\d+)x(\d+).*$')
 REID = re.compile('''^uid=(?P<uid>\d+)\([^)]+\)[ ]
                       gid=\d+\((?P<group>[^)]+)\)[ ]
                       groups=(?P<groups>.+)$''', re.VERBOSE)
-REFIREWALL = re.compile('''^(?P<toport>\d+)/(?P<proto>\w+)[ ]+
+REFIREWALL = re.compile('''^(?P<toport>\d+)(/(?P<proto>\w+))?[ ]+
                             (?P<action>\w+)[ ]+
-                            (?P<fromhost>[\d\.]+/\d+)$''', re.VERBOSE)
+                            (?P<fromhost>[\d\.]+(/\d+)?)$''', re.VERBOSE)
 
 def resource(res):
     '''
@@ -61,7 +61,7 @@ def include(module):
 
     execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
 
-def firewall(*rules):
+def firewall(action=None, fromhost=None, toport=None, proto=None):
     '''
     Set up firewall
     '''
@@ -86,7 +86,7 @@ def firewall(*rules):
             if match:
                 currules.add((match.group('action').lower(),
                               match.group('proto'), match.group('fromhost'),
-                              match.group('toport')))
+                              int(match.group('toport'))))
             else:
                 logging.warn("Couldn't parse ufw status: %s" % line)
 
@@ -94,7 +94,7 @@ def firewall(*rules):
         logging.warn(err[7:-1])
         return False
 
-    # Enable firewall settings if needs be
+    # Enable firewall if needs be
     if status != 'active':
         cmd = ['ufw', 'enable']
         logging.info(' '.join(cmd))
@@ -103,15 +103,16 @@ def firewall(*rules):
             _messages(proc)
 
     # Change firewall settings if needs be
-    for rule in rules:
-        if rule not in currules:
-            action, proto, fromhost, toport = rule
-            cmd = ['ufw', action, 'proto', proto, 'from', fromhost, 'to',
-                   'any', 'port', toport]
-            logging.info(' '.join(cmd))
-            if not __muppet__['_dryrun']:
-                proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-                _messages(proc)
+    rule = action, proto, fromhost, toport
+    if None not in (action, fromhost, toport) and rule not in currules:
+        cmd = ['ufw', action]
+        if proto:
+            cmd.extend(['proto', proto])
+        cmd.extend(['from', fromhost, 'to', 'any', 'port', str(toport)])
+        logging.info(' '.join(cmd))
+        if not __muppet__['_dryrun']:
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            _messages(proc)
 
 def resolution():
     '''
