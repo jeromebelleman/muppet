@@ -35,12 +35,12 @@ REFIREWALL = re.compile('''^(?P<toport>\d+)/(?P<proto>\w+)[ ]+
                             (?P<action>\w+)[ ]+
                             (?P<fromhost>[\d\.]+/\d+)$''', re.VERBOSE)
 
-def resources():
+def resource(res):
     '''
-    Return resources directory
+    Return resource path
     '''
 
-    return '%s/resources' % __muppet__['_directory']
+    return '%s/resources/%s' % (__muppet__['_directory'], res)
 
 def users():
     '''
@@ -226,6 +226,7 @@ def _aptget(command, args, dryrun):
     cmd = "DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -qy %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.info(cmd)
+    # FIXME Newlines in TTY still messed up
     proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
     _messages(proc)
 
@@ -250,6 +251,40 @@ def purge(*args, **maintainer):
         topurge -= _getmaintainer(maintainer['maintainer'])
 
     if topurge: _aptget('purge', topurge, __muppet__['_dryrun'])
+
+def aptkey(keyfile):
+    '''
+    Run apt-key add
+    '''
+
+    devnull = open(os.devnull, 'w')
+
+    # Get fingerprint
+    cmd = ['/usr/bin/gpg', '--with-fingerprint', keyfile]
+    proc = Popen(cmd, stdout=PIPE, stderr=devnull)
+    for line in proc.stdout:
+        if 'Key fingerprint' in line:
+            fingerprint = line.split('=')[1].strip()
+            # Don't break lest gpg may not end
+
+    # Do we already have a key with this fingerprint?
+    cmd = ['/usr/bin/apt-key', 'fingerprint']
+    proc = Popen(cmd, stdout=PIPE, stderr=devnull)
+    exists = False
+    for line in proc.stdout:
+        if fingerprint in line:
+            exists = True
+            # Don't break lest gpg may not end
+
+    # Add key if needs be
+    if not exists:
+        logging.info("Adding %s to trusted key list" % keyfile)
+        cmd = ['/usr/bin/apt-key', 'add', keyfile]
+        if not __muppet__['_dryrun']:
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            _messages(proc)
+
+    devnull.close()
 
 def adduser(user, password, shell):
     '''
@@ -649,11 +684,12 @@ __muppet__ = {
               'visudo':            visudo,
               'install':           install,
               'purge':             purge,
+              'aptkey':            aptkey,
               'adduser':           adduser,
               'usermod':           usermod,
               'users':             users,
               'chmod':             chmod,
-              'resources':         resources,
+              'resource':          resource,
               'resolution':        resolution,
               'firewall':          firewall,
               'isjustinstalled':   isjustinstalled,
