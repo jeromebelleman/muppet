@@ -5,8 +5,9 @@ Manage configurations
 '''
 
 import os, sys
-from os.path import expanduser
+from os.path import expanduser, dirname
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import errno
 import logging
 import datetime
 
@@ -49,28 +50,34 @@ def applyconf(args):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
+    # Messages to TTY
     handler = logging.StreamHandler()
     formatter = logging.Formatter("%(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    if args.logfile:
-        handler = logging.FileHandler(expanduser(args.logfile))
-        formatter = logging.Formatter(LOGFMT)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+    # Messages to logfile
+    try:
+        os.makedirs(dirname(args.logfile))
+    except OSError, exc:
+        if exc.errno != errno.EEXIST:
+            print >> sys.stderr, exc
+            return 1
+    handler = logging.FileHandler(args.logfile)
+    formatter = logging.Formatter(LOGFMT)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     # Set variables
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
-    muppet.functions.__muppet__['_directory'] = expanduser(args.directory)
+    muppet.functions.__muppet__['_directory'] = args.directory
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
         
     logging.info("Beginning run")
 
-    execfile(expanduser(args.directory) + '/index.py',
-             muppet.functions.__muppet__.copy())
+    execfile(args.directory + '/index.py', muppet.functions.__muppet__.copy())
 
     logging.info("Ending run")
 
@@ -85,7 +92,7 @@ def main():
 
     applyparser = subs.add_parser("apply", help="apply configuration",
                                   formatter_class=ArgumentDefaultsHelpFormatter)
-    applyparser.add_argument('-d', '--directory',
+    applyparser.add_argument('-d', '--directory', type=expanduser,
                              help="configuration directory",
                              default=DIR)
     applyparser.add_argument('--dryrun', '-n', action='store_true',
@@ -93,7 +100,8 @@ def main():
     applyparser.add_argument('--verbose', '-v', action='store_true',
                              help="be more verbose")
     applyparser.add_argument('--logfile', '-l', default='%s/log' % DIR,
-                             help="write messages to log file too")
+                             help="write messages to log file too",
+                             type=expanduser)
     helpmsg = "user:group pairs to apply the userwide config to"
     applyparser.add_argument('--users', '-u', nargs='+', default=[],
                              help=helpmsg)
