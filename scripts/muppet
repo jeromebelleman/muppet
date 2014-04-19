@@ -46,6 +46,14 @@ def applyconf(args):
         if pid != 0:
             return
 
+    # Create runtime directory if needs be
+    try:
+        os.mkdir(args.runtime)
+    except OSError, exc:
+        if exc.errno != errno.EEXIST:
+            print >> sys.stderr, exc
+            return 1
+
     # Messages
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
@@ -57,13 +65,7 @@ def applyconf(args):
     logger.addHandler(handler)
 
     # Messages to logfile
-    try:
-        os.makedirs(dirname(args.logfile))
-    except OSError, exc:
-        if exc.errno != errno.EEXIST:
-            print >> sys.stderr, exc
-            return 1
-    handler = logging.FileHandler(args.logfile)
+    handler = logging.FileHandler(args.runtime + '/log')
     formatter = logging.Formatter(LOGFMT)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -72,6 +74,7 @@ def applyconf(args):
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = args.directory
+    muppet.functions.__muppet__['_runtime'] = args.runtime
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
         
@@ -101,7 +104,7 @@ def main():
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
                              help="be more verbose")
-    applyparser.add_argument('--logfile', '-l', default='%s/log' % DIR,
+    applyparser.add_argument('--runtime', '-r', default=DIR,
                              help="write messages to log file too",
                              type=expanduser)
     helpmsg = "user:group pairs to apply the userwide config to"
