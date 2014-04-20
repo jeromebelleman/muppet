@@ -410,7 +410,7 @@ def _template(path, variables):
     tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
     return tpt.render(**variables) if variables else tpt.render()
 
-def _backup(path):
+def backup(path):
     '''
     Backup config file
     '''
@@ -438,7 +438,11 @@ def _backup(path):
     else:
         if not __muppet__['_dryrun']:
             # Will dereference before copying
-            shutil.copy2(expanduser(path), localpath)
+            try:
+                shutil.copy2(expanduser(path), localpath)
+            except IOError, exc:
+                logging.warning(exc)
+                return False
 
             status = os.stat(expanduser(path))
             os.chown(localpath, status.st_uid, status.st_gid)
@@ -574,7 +578,7 @@ def edit(path, owner, group, mode, variables=None, verbatim=True):
 
         if diff:
             # Back up config file
-            if exists(expanduser(path)) and not _backup(path):
+            if exists(expanduser(path)) and not backup(path):
                 return False
 
             # Edit config file
@@ -647,7 +651,7 @@ def visudo(filename, variables=None, verbatim=True):
             devnull.close()
             if process.returncode == 0:
                 # Back up sudoers file
-                if exists(path) and not _backup(path):
+                if exists(path) and not backup(path):
                     return
 
                 # Create lockfile
@@ -701,6 +705,7 @@ __muppet__ = {
               'mkdir':              mkdir,
               'visudo':             visudo,
               'resource':           resource,
+              'backup':             backup,
 
               # Package management
               'install':            install,
