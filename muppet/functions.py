@@ -313,6 +313,32 @@ def adduser(user, password, shell):
         for line in err.splitlines():
             logging.warning(line)
 
+def addgroup(group, gid=None):
+    '''
+    Add group
+    '''
+
+    # Does this group already exist?
+    groups = open('/etc/group')
+    for line in groups:
+        knowngroup, _, knowngid, _ = line.split(':', 3)
+        if group == knowngroup:
+            if gid != int(knowngid):
+                logging.warning("%s exists but with GID %s", knowngid)
+            groups.close()
+            return
+    groups.close()
+
+    # Add group
+    cmd = ['/usr/sbin/groupadd']
+    if gid:
+        cmd.extend(['-g', str(gid)])
+    cmd.append(group)
+    logging.info(' '.join(cmd))
+    if not __muppet__['_dryrun']:
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        _messages(proc)
+
 def usermod(login, uid=None, group=None, groups=[]):
     '''
     Modify user account
@@ -715,6 +741,7 @@ __muppet__ = {
 
               # User management
               'adduser':            adduser,
+              'addgroup':           addgroup,
               'usermod':            usermod,
               'users':              users,
               'chmod':              chmod,
