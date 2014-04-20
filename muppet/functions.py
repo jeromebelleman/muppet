@@ -17,6 +17,7 @@ import shutil
 import errno
 from select import select
 import time
+import socket
 
 from mako.template import Template
 
@@ -679,6 +680,16 @@ def visudo(filename, variables=None, verbatim=True):
 
     return change
 
+def hostname():
+    return socket.gethostname()
+
+def release():
+    devnull = open(os.devnull, 'w')
+    proc = Popen(['/usr/bin/lsb_release', '-rs'], stdout=PIPE, stderr=devnull)
+    out, _, = proc.communicate()
+    devnull.close()
+    return out.strip()
+
 __muppet__ = {
               # Miscellaneous
               'include':            include,
@@ -707,4 +718,6 @@ __muppet__ = {
               'resolution':         resolution,
               'islaptop':           islaptop,
               'exit':               sys.exit,
+              'hostname':           hostname,
+              'release':            release,
              }
