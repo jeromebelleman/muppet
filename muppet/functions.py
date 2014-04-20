@@ -5,7 +5,7 @@
 Common configuration options
 '''
 
-import os
+import os, sys
 from os.path import expanduser, exists, islink
 import pwd, grp
 import stat
@@ -16,6 +16,7 @@ import re
 import shutil
 import errno
 from select import select
+import time
 
 from mako.template import Template
 
@@ -185,6 +186,7 @@ def run(command):
     if not __muppet__['_dryrun']:
         proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _messages(proc)
+        return proc.returncode
 
 def _getmaintainer(maintainer):
     '''
@@ -202,7 +204,7 @@ def _getmaintainer(maintainer):
 
     return maintained
 
-def _getselections():
+def getselections():
     '''
     Return set of installed packages
     '''
@@ -237,7 +239,7 @@ def install(*args):
     '''
 
     # Install packages if needs be
-    toinstall = set(args) - _getselections()
+    toinstall = set(args) - getselections()
     if toinstall:
         _aptget('install', toinstall, __muppet__['_dryrun'])
  
@@ -247,7 +249,7 @@ def purge(*args, **maintainer):
     '''
 
     # Remove packages if needs be
-    topurge = set(args) & _getselections()
+    topurge = set(args) & getselections()
     if 'maintainer' in maintainer:
         topurge -= _getmaintainer(maintainer['maintainer'])
 
@@ -678,23 +680,31 @@ def visudo(filename, variables=None, verbatim=True):
     return change
 
 __muppet__ = {
-              'include':           include,
-              'run':               run,
-              'edit':              edit,
-              'mkdir':             mkdir,
-              'visudo':            visudo,
-              'install':           install,
-              'purge':             purge,
-              'aptkey':            aptkey,
-              'adduser':           adduser,
-              'usermod':           usermod,
-              'users':             users,
-              'chmod':             chmod,
-              'resource':          resource,
-              'resolution':        resolution,
-              'firewall':          firewall,
-              'isjustinstalled':   isjustinstalled,
-              'notjustinstalled':  notjustinstalled,
-              'islaptop':          islaptop,
-              'MODES':             MODES,
+              # Miscellaneous
+              'include':            include,
+              'run':                run,
+              'firewall':           firewall,
+
+              # Editing
+              'edit':               edit,
+              'mkdir':              mkdir,
+              'visudo':             visudo,
+              'resource':           resource,
+
+              # Package management
+              'install':            install,
+              'purge':              purge,
+              'getselections':      getselections,
+              'aptkey':             aptkey,
+
+              # User management
+              'adduser':            adduser,
+              'usermod':            usermod,
+              'users':              users,
+              'chmod':              chmod,
+
+              # Flow control
+              'resolution':         resolution,
+              'islaptop':           islaptop,
+              'exit':               sys.exit,
              }
