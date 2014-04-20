@@ -38,13 +38,18 @@ def applyconf(args):
     '''
             
     if args.daemonise:
-        pid = os.fork()
-        if pid != 0:
-            return
+        sid = os.getsid(os.getpid())
 
         pid = os.fork()
         if pid != 0:
             return
+
+        os.setsid()
+        pid = os.fork()
+        if pid != 0:
+            return
+    else:
+        sid = None
 
     # Create runtime directory if needs be
     try:
@@ -77,6 +82,7 @@ def applyconf(args):
     muppet.functions.__muppet__['_runtime'] = args.runtime
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
+    muppet.functions.__muppet__['_sid'] = sid
         
     logging.info("Beginning run")
     try:

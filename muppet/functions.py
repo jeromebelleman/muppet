@@ -9,7 +9,7 @@ import os, sys
 from os.path import expanduser, exists, islink
 import pwd, grp
 import stat
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call
 import logging
 import difflib
 import re
@@ -344,6 +344,10 @@ def usermod(login, uid=None, group=None, groups=[]):
     Modify user account
     '''
 
+    if not __muppet__['_sid']:
+        logging.warning("Won't run usermod without daemonising first")
+        return
+    
     # Check user and groups
     proc = Popen(['id', login], stdout=PIPE)
     match = REID.match(proc.stdout.next())
@@ -362,10 +366,14 @@ def usermod(login, uid=None, group=None, groups=[]):
         cmd = ['/usr/sbin/usermod'] + uid + group + groups + [login]
         logging.info(' '.join(cmd))
         if not __muppet__['_dryrun']:
-            proc = Popen(cmd, stderr=PIPE)
-            _, err = proc.communicate()
-            for line in err.splitlines():
-                logging.warning(line)
+            # Kill session, because the user to mod probably has processes there
+            call(['/usr/bin/pkill', '-s', str(__muppet__['_sid'])])
+            while call(['/usr/bin/pgrep', '-s0']) == 0:
+                time.sleep(5)
+
+            # Run usermod
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            _messages(proc)
 
 def _chown(path, status, owner, group):
     '''
