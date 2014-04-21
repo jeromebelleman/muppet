@@ -53,7 +53,7 @@ def users():
         return [(pair.split(':')[0], pair.split(':')[1])
                 for pair in __muppet__['_users']]
     except IndexError:
-        logging.warning("Invalid user:group specification - ignoring")
+        logging.warning("invalid user:group specification - ignoring")
         return []
 
 def include(module):
@@ -90,7 +90,7 @@ def firewall(action=None, fromhost=None, toport=None, proto=None):
                               match.group('proto'), match.group('fromhost'),
                               int(match.group('toport'))))
             else:
-                logging.warn("Couldn't parse ufw status: %s" % line)
+                logging.warn("couldn't parse ufw status: %s" % line)
 
     if proc.returncode:
         logging.warn(err[7:-1])
@@ -123,20 +123,20 @@ def resolution():
 
     # Try with xrandr
     cmd = ['/usr/bin/xrandr']
-    logging.info("Getting screen resolution from %s" % ' '.join(cmd))
+    logging.info("getting screen resolution from %s" % ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REXRANDR.match(line)
         if match:
             width, height = match.groups()
             return int(width), int(height)
-    logging.warning("Couldn't get resolution from %s" % ' '.join(cmd))
+    logging.warning("couldn't get resolution from %s" % ' '.join(cmd))
     for line in proc.stderr:
         logging.warning(line.strip())
 
     # Try with fbset
     cmd = ['/bin/fbset']
-    logging.info("Getting screen resolution from %s instead" % ' '.join(cmd))
+    logging.info("getting screen resolution from %s instead" % ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REFBSET.match(line)
@@ -147,7 +147,7 @@ def resolution():
         logging.warning(line.strip())
 
     # Default to sensible resolution
-    logging.warning("Couldn't get resolution - defaulting to 1024×768")
+    logging.warning("couldn't get resolution - defaulting to 1024×768")
     return 1024, 768
 
 def _messages(proc):
@@ -194,12 +194,12 @@ def _updaterc(service, state):
         path = '/etc/init/%s.override' % service
         if state == 'S':
             if exists(path): # Make sure it's not already enabled
-                logging.info("Enabling %s", service)
+                logging.info("removing %s", path)
                 if not __muppet__['_dryrun']:
                     os.remove(path)
         else:
             if not exists(path): # Make sure it's not already disabled
-                logging.info("Disabling %s", service)
+                logging.info("adding %s", path)
                 if not __muppet__['_dryrun']:
                     fhl = open(path, 'w')
                     fhl.write('manual')
@@ -209,10 +209,10 @@ def _updaterc(service, state):
             # Make sure it's not already disabled
             if service in filename and not filename.startswith(state):
                 action = 'enable' if state == 'S' else 'disable'
-                logging.info("%sing %s", action[:-1].capitalize(), service)
+                cmd = ['update-rc.d', service, action]
+                logging.info(' '.join(cmd))
                 if not __muppet__['_dryrun']:
-                    proc = Popen(['update-rc.d', service, action],
-                                 stdout=PIPE, stderr=PIPE)
+                    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
                     _messages(proc)
 
 def enable(service):
@@ -314,8 +314,8 @@ def aptkey(keyfile):
 
     # Add key if needs be
     if not exists:
-        logging.info("Adding %s to trusted key list" % keyfile)
         cmd = ['/usr/bin/apt-key', 'add', keyfile]
+        logging.info(' '.join(cmd))
         if not __muppet__['_dryrun']:
             proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
             _messages(proc)
@@ -377,7 +377,7 @@ def usermod(login, uid=None, group=None, groups=[]):
     '''
 
     if not __muppet__['_sid']:
-        logging.warning("Won't run usermod without daemonising first")
+        logging.warning("won't run usermod without daemonising first")
         return
     
     # Check user and groups
@@ -461,7 +461,7 @@ def _diff(path, contents):
                                          path, '<new>'))
         configfile.close()
         if __muppet__['_verbose'] and diff:
-            logging.debug('\n' + ''.join(diff))
+            logging.debug('diff:\n' + ''.join(diff))
 
         return diff
     except IOError:
