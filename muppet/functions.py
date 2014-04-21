@@ -189,6 +189,38 @@ def run(command):
         _messages(proc)
         return proc.returncode
 
+def _updaterc(service, state):
+    if exists('/etc/init/%s.conf' % service): # If it's Upstart
+        path = '/etc/init/%s.override' % service
+        if state == 'S':
+            if exists(path): # Make sure it's not already enabled
+                logging.info("Enabling %s", service)
+                if not __muppet__['_dryrun']:
+                    os.remove(path)
+        else:
+            if not exists(path): # Make sure it's not already disabled
+                logging.info("Disabling %s", service)
+                if not __muppet__['_dryrun']:
+                    fhl = open(path, 'w')
+                    fhl.write('manual')
+                    fhl.close()
+    else: # If it's init
+        for filename in os.listdir('/etc/rc2.d'):
+            # Make sure it's not already disabled
+            if service in filename and not filename.startswith(state):
+                action = 'enable' if state == 'S' else 'disable'
+                logging.info("%sing %s", action[:-1].capitalize(), service)
+                if not __muppet__['_dryrun']:
+                    proc = Popen(['update-rc.d', service, action],
+                                 stdout=PIPE, stderr=PIPE)
+                    _messages(proc)
+
+def enable(service):
+    _updaterc(service, 'S')
+
+def disable(service):
+    _updaterc(service, 'K')
+
 def _getmaintainer(maintainer):
     '''
     Return set of custom-built packages
@@ -729,10 +761,11 @@ def release():
     return out.strip()
 
 __muppet__ = {
-              # Miscellaneous
-              'include':            include,
+              # Execution
               'run':                run,
               'firewall':           firewall,
+              'enable':             enable,
+              'disable':            disable,
 
               # Editing
               'edit':               edit,
@@ -755,6 +788,7 @@ __muppet__ = {
               'chmod':              chmod,
 
               # Flow control
+              'include':            include,
               'resolution':         resolution,
               'islaptop':           islaptop,
               'exit':               sys.exit,
