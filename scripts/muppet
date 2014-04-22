@@ -13,10 +13,9 @@ import datetime
 
 import muppet.functions
 
-# TODO Software repositories
 # TODO Improve backtrace reporting from templates
 # TODO Warn against running in X?
-# TODO Do without 'notjustinstalled' file
+# TODO Edit config files from files with a different name
 
 DIR = '~/.muppet'
 LOGFMT = '%(asctime)s %(levelname)s %(message)s'

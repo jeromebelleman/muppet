@@ -791,7 +791,6 @@ __muppet__ = {
               'include':            include,
               'resolution':         resolution,
               'islaptop':           islaptop,
-              'exit':               sys.exit,
               'hostname':           hostname,
               'release':            release,
              }
