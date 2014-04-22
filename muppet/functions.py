@@ -376,10 +376,6 @@ def usermod(login, uid=None, group=None, groups=[]):
     Modify user account
     '''
 
-    if not __muppet__['_sid']:
-        logging.warning("won't run usermod without daemonising first")
-        return
-    
     # Check user and groups
     proc = Popen(['id', login], stdout=PIPE)
     match = REID.match(proc.stdout.next())
@@ -399,9 +395,13 @@ def usermod(login, uid=None, group=None, groups=[]):
         logging.info(' '.join(cmd))
         if not __muppet__['_dryrun']:
             # Kill session, because the user to mod probably has processes there
-            call(['/usr/bin/pkill', '-s', str(__muppet__['_sid'])])
-            while call(['/usr/bin/pgrep', '-s0']) == 0:
-                time.sleep(5)
+            if uid:
+                if not __muppet__['_sid']:
+                    logging.warning("won't run usermod without daemonising")
+                    return
+                call(['/usr/bin/pkill', '-s', str(__muppet__['_sid'])])
+                while call(['/usr/bin/pgrep', '-s0']) == 0:
+                    time.sleep(5)
 
             # Run usermod
             proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
