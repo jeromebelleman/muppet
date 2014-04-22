@@ -83,13 +83,13 @@ def applyconf(args):
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
     muppet.functions.__muppet__['_sid'] = sid
         
-    logging.info("beginning run")
+    logging.info("beginning run on " + muppet.functions.hostname())
     try:
         execfile(args.directory + '/index.py',
                  muppet.functions.__muppet__.copy())
     except SystemExit, exc:
         logging.warning("Exited: %s", exc)
-    logging.info("ending run")
+    logging.info("ending run on " + muppet.functions.hostname())
 
 def main():
     '''
