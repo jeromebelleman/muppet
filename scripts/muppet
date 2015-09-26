@@ -12,6 +12,9 @@ import logging
 import datetime
 import subprocess
 import string
+import uuid
+import stat
+import time
 
 import muppet.functions
 
@@ -30,7 +33,6 @@ def encrypt(_):
 
     import crypt
     import getpass
-    import uuid
     # http://serverfault.com/questions/330069
     print crypt.crypt(getpass.getpass(), '$6$%s' % uuid.uuid4())
 
@@ -57,21 +59,24 @@ def connect(connection, dryrun):
         doremove = True
         if not dryrun:
             with open(path, 'w') as fhl:
-                fhl.write(template.substitute(hwaddr=hwaddr, ssid=conn))
+                fhl.write(template.substitute(
+                                              hwaddr=hwaddr,
+                                              ssid=conn,
+                                              uuid=uuid.uuid4(),
+                                             ))
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
     # Connect
     logging.info("connecting to %s", conn)
     if not dryrun:
+        time.sleep(5) # Wait for NetworkManager to notice
         try:
             subprocess.check_call(['nmcli', 'con', 'up', 'id', conn])
         except subprocess.CalledProcessError:
             logging.warn("couldn't connect to %s", conn)
 
-    # Clean up
-    if doremove:
-        logging.info("removing %s", path)
-        if not dryrun:
-            os.remove(path)
+    return path if doremove else None
+
 
 def applyconf(args):
     '''
@@ -130,7 +135,7 @@ def applyconf(args):
 
     # Connect if needs be
     if args.connection:
-        connect(args.connection, args.dryrun)
+        path = connect(args.connection, args.dryrun)
 
     # Apply manifests
     try:
@@ -138,6 +143,13 @@ def applyconf(args):
                  muppet.functions.__muppet__.copy())
     except SystemExit, exc:
         logging.warning("Exited: %s", exc)
+
+    # Disconnect if needs be
+    if args.connection and path:
+        logging.info("removing %s", path)
+        if not args.dryrun:
+            os.remove(path)
+
     logging.info("ending run on " + muppet.functions.hostname())
 
 def main():
@@ -168,7 +180,8 @@ def main():
                              help="run in the background")
     applyparser.add_argument('--connection', '-c', metavar='CONNTEMPL',
                              help="connection template, with the $ssid\
-                                   placeholder set for 'id' and 'ssid' and the\
+                                   placeholder set for 'id' and 'ssid',\
+                                   the $uuid placeholder set for 'uuid' and the\
                                    $hwaddr placeholder set for 'mac-address'")
     applyparser.set_defaults(func=applyconf)
 
