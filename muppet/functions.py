@@ -793,4 +793,6 @@ __muppet__ = {
               'islaptop':           islaptop,
               'hostname':           hostname,
               'release':            release,
+              'isjustinstalled':    isjustinstalled,
+              'notjustinstalled':   notjustinstalled,
              }
