@@ -10,6 +10,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import errno
 import logging
 import datetime
+import subprocess
+import string
 
 import muppet.functions
 
@@ -18,6 +20,7 @@ import muppet.functions
 # TODO Edit config files from files with a different name
 
 DIR = '~/.muppet'
+CONNPATH = '/etc/NetworkManager/system-connections/'
 LOGFMT = '%(asctime)s %(levelname)s %(message)s'
 
 def encrypt(_):
@@ -30,6 +33,45 @@ def encrypt(_):
     import uuid
     # http://serverfault.com/questions/330069
     print crypt.crypt(getpass.getpass(), '$6$%s' % uuid.uuid4())
+
+def connect(connection, dryrun):
+    # Get hardware address
+    proc = subprocess.Popen(['ifconfig', 'wlan0'], stdout=subprocess.PIPE)
+    first = True
+    for line in proc.stdout:
+        if first:
+            hwaddr = line.split()[4].upper()
+            first = False
+
+    # Write connection file
+    with open(connection) as fhl:
+        template = string.Template(fhl.read())
+    conn = os.path.basename(connection)
+    path = CONNPATH + conn
+    if os.path.exists(path):
+        msg = "%s already exists, will use this instead of overwriting it"
+        logging.info(msg, path)
+        doremove = False
+    else:
+        logging.info("writing %s", path)
+        doremove = True
+        if not dryrun:
+            with open(path, 'w') as fhl:
+                fhl.write(template.substitute(hwaddr=hwaddr, ssid=conn))
+
+    # Connect
+    logging.info("connecting to %s", conn)
+    if not dryrun:
+        try:
+            subprocess.check_call(['nmcli', 'con', 'up', 'id', conn])
+        except subprocess.CalledProcessError:
+            logging.warn("couldn't connect to %s", conn)
+
+    # Clean up
+    if doremove:
+        logging.info("removing %s", path)
+        if not dryrun:
+            os.remove(path)
 
 def applyconf(args):
     '''
@@ -82,8 +124,15 @@ def applyconf(args):
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
     muppet.functions.__muppet__['_sid'] = sid
-        
+
+    # Run
     logging.info("beginning run on " + muppet.functions.hostname())
+
+    # Connect if needs be
+    if args.connection:
+        connect(args.connection, args.dryrun)
+
+    # Apply manifests
     try:
         execfile(args.directory + '/index.py',
                  muppet.functions.__muppet__.copy())
@@ -100,7 +149,7 @@ def main():
     parser = ArgumentParser(description="manage configurations",)
     subs = parser.add_subparsers()
 
-    applyparser = subs.add_parser("apply", help="apply configuration",
+    applyparser = subs.add_parser('apply', help="apply configuration",
                                   formatter_class=ArgumentDefaultsHelpFormatter)
     applyparser.add_argument('-d', '--directory', type=expanduser,
                              help="configuration directory",
@@ -117,9 +166,13 @@ def main():
                              help=helpmsg)
     applyparser.add_argument('--daemonise', '-b', action='store_true',
                              help="run in the background")
+    applyparser.add_argument('--connection', '-c', metavar='CONNTEMPL',
+                             help="connection template, with the $ssid\
+                                   placeholder set for 'id' and 'ssid' and the\
+                                   $hwaddr placeholder set for 'mac-address'")
     applyparser.set_defaults(func=applyconf)
 
-    encryptparser = subs.add_parser("encrypt", help="encrypt password")
+    encryptparser = subs.add_parser('encrypt', help="encrypt password")
     encryptparser.set_defaults(func=encrypt)
 
     args = parser.parse_args()
