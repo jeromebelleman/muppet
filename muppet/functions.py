@@ -19,8 +19,6 @@ from select import select
 import time
 import socket
 
-from mako.template import Template
-
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
@@ -471,6 +469,7 @@ def _template(path, variables):
     '''
     Apply template
     '''
+    from mako.template import Template
 
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
     tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
