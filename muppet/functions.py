@@ -121,20 +121,20 @@ def resolution():
 
     # Try with xrandr
     cmd = ['/usr/bin/xrandr']
-    logging.info("getting screen resolution from %s" % ' '.join(cmd))
+    logging.debug("getting screen resolution from %s" % ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REXRANDR.match(line)
         if match:
             width, height = match.groups()
             return int(width), int(height)
-    logging.warning("couldn't get resolution from %s" % ' '.join(cmd))
+    logging.debug("couldn't get resolution from %s" % ' '.join(cmd))
     for line in proc.stderr:
-        logging.warning(line.strip())
+        logging.debug(line.strip())
 
     # Try with fbset
     cmd = ['/bin/fbset']
-    logging.info("getting screen resolution from %s instead" % ' '.join(cmd))
+    logging.debug("getting screen resolution from %s instead" % ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REFBSET.match(line)
@@ -142,7 +142,7 @@ def resolution():
             width, height = match.groups()
             return int(width), int(height)
     for line in proc.stderr:
-        logging.warning(line.strip())
+        logging.debug(line.strip())
 
     # Default to sensible resolution
     logging.warning("couldn't get resolution - defaulting to 1024×768")
@@ -324,6 +324,8 @@ def adduser(user, password, shell):
     '''
     Add user
     '''
+
+    # TODO Check if user is already there
 
     # Create user without password, preventing him from logging in
     cmd = ['/usr/sbin/useradd', '-m', user, '-s', shell]
