@@ -33,7 +33,7 @@ REID = re.compile('''^uid=(?P<uid>\d+)\([^)]+\)[ ]
                       groups=(?P<groups>.+)$''', re.VERBOSE)
 REFIREWALL = re.compile('''^(?P<toport>\d+)(/(?P<proto>\w+))?[ ]+
                             (?P<action>\w+)[ ]+
-                            (?P<fromhost>[\d\.]+(/\d+)?)$''', re.VERBOSE)
+                            (?P<fromhost>[\d\.]+(/\d+)?)''', re.VERBOSE)
 
 def resource(res):
     '''
