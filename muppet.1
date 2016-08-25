@@ -1,0 +1,340 @@
+.TH "MUPPET" "1" "October 2016" "" ""
+.hy
+.SH NAME
+.PP
+muppet \[en] Configuration management tool
+.SH SYNOPSIS
+.PP
+See \f[B]muppet \-h\f[].
+.SH DESCRIPTION
+.PP
+Manage Debian\-based system configurations from manifests written in
+Python.
+.SH SUB\-COMMANDS
+.TP
+.B apply
+Apply the muppet configuration.
+.RS
+.RE
+.TP
+.B encrypt
+Prompt for a password, an encrypted version of which will be printed.
+.RS
+.RE
+.TP
+.B build
+Build packages specified in \f[B]/var/lib/muppet/repository.yaml\f[] (or
+wherever the muppet directory is).
+This \f[B]repository.yaml\f[] file looks like:
+.RS
+.IP
+.nf
+\f[C]
+packages:
+
+\ \ \ \ ~/foo:
+
+\ \ \ \ ~/bar\-1.0\-x86_64:
+\ \ \ \ \ \ \ \ package:\ \[aq]bar\[aq]
+\ \ \ \ \ \ \ \ arch:\ \[aq]amd64\[aq]
+
+\ \ \ \ ~/baz\-2.0\-i686:
+\ \ \ \ \ \ \ \ package:\ \[aq]baz\[aq]
+\ \ \ \ \ \ \ \ architecture:\ \[aq]i386\[aq]
+\ \ \ \ \ \ \ \ cmd:\ \[aq]dpkg\-deb\ \-b\ baz\-2.0\ &&\ cp\ *.deb\ {repository}/{architecture}\[aq]
+
+defaults:
+\ \ \ \ cmd:\ \[aq]make\ distclean\ &&
+\ \ \ \ \ \ \ \ make\ &&
+\ \ \ \ \ \ \ \ cp\ \-va\ {package}*.deb\ {repository}/{architecture}\ &&
+\ \ \ \ \ \ \ \ make\ distclean\[aq]
+\f[]
+.fi
+.PP
+Under \f[B]packages\f[] is a list of paths to build the packages from.
+.IP \[bu] 2
+Without anything otherwise specified, it is assumed packages are named
+after the directory they\[aq]re build from (e.g.\ \f[B]foo\f[], here).
+.IP \[bu] 2
+If it can\[aq]t be guessed from the path, the package can be specified
+with the \f[B]package\f[] key (e.g.\ \f[B]bar\f[], here).
+.IP \[bu] 2
+The architecture defaults to whatever
+\f[B]dpkg\ \-\-print\-architecture\f[] prints out and can be overridden
+with the \f[B]architecture\f[] key (e.g.\ \f[B]bar\f[], here).
+.IP \[bu] 2
+The default command run to build and deploy packages is specified with
+the \f[B]cmd\f[] key under \f[B]defaults\f[] and can be overridden on a
+per\-package basis with the \f[B]cmd\f[] key (e.g.\ \f[B]baz\f[], here).
+.RE
+.SH MUPPET DIRECTORY
+.PP
+The \f[B]/var/lib/muppet\f[] directory \[en]\ or whatever \f[B]\-d\f[]
+points to\ \[en] contains various files and directories:
+.TP
+.B backups/
+Files which are backed up before they are changed.
+.RS
+.RE
+.TP
+.B files/
+Static or templated files, which the \f[B]edit()\f[] function uses.
+.RS
+.RE
+.TP
+.B manifests/
+Python scripts executed to apply the configuration, having convenience
+functions in their scope.
+The entry point is \f[B]index.py\f[] which typically refers to other
+ones with \f[B]include()\f[].
+Modules should have the \f[B]\&.py\f[] extension.
+.RS
+.PP
+You can call \f[B]sys.exit(0)\f[] anywhere in a manifest to interrupt
+applying the muppet configuration.
+Muppet will actually catch this to gracefully exit.
+.PP
+Modules such as \f[B]sys\f[] and \f[B]os\f[] aren\[aq]t imported by
+default, but you can do so yourself with \f[B]import\f[] as you would do
+in Python.
+.RE
+.TP
+.B resources/
+Files made available to functions in manifests from the path returned by
+\f[B]resource()\f[].
+.RS
+.RE
+.TP
+.B repository/
+DEB package repository, which can be added to
+\f[B]/etc/apt/sources.list.d\f[] by running \f[B]addmuppetrepo()\f[]
+from a manifest.
+.RS
+.RE
+.PP
+Logging messages of changes made are recorded into
+\f[B]/var/log/muppet.log\f[], or wherever \f[B]\-l\f[] points to.
+.SH SERVICES
+.TP
+.B enable(\[aq]service\[aq], status=None)
+Start and enable \f[B]service\f[] for startup at boot time, either the
+init way, the Upstart way or the systemd way.
+.RS
+.RE
+.TP
+.B disable(\[aq]service\[aq], status=None)
+Stop and disable \f[B]service\f[] for startup at boot time, either the
+init way, the Upstart way or the systemd way.
+.RS
+.RE
+.PP
+For init scripts, use the \f[B]status\f[] parameter to specify part of
+the message you would expect if the service wasn\[aq]t in the status you
+want, in which case the status change will be carried out.
+.SH TEMPLATES
+.PP
+Config files can be templated in the Mako language
+(http://docs.makotemplates.org/en/latest/syntax.html).
+Variables look like \f[B]${name}\f[], conditionals look like:
+.IP
+.nf
+\f[C]
+%\ if\ name\ ==\ \[aq]saucy\[aq]:
+deb\ cdrom:[Ubuntu\ 13.10\ _Saucy\ Salamander_]/\ saucy\ main\ restricted
+%\ elif\ name\ ==\ \[aq]raring\[aq]:
+deb\ cdrom:[Ubuntu\ 13.04\ _Raring\ Ringtail_]/\ raring\ main\ restricted
+\f[]
+.fi
+.PP
+Lines commented out start with \f[B]##\f[].
+If you need a verbatim \f[B]##\f[], write
+\f[B]\f[C]${\[aq]##\[aq]}\f[]\f[].
+End\-of\-line backslashes consume newlines.
+Likewise, \f[B]\f[C]${\[aq]\\\\\\\\\[aq]}\f[]\f[] if you need a verbatim
+one.
+.SH EDITING FUNCTIONS
+.TP
+.B edit(\[aq]srcpath\[aq], \[aq]path\[aq], \[aq]owner\[aq], \[aq]group\[aq], \[aq]mode\[aq], variables=None)
+Write file to \f[B]path\f[] from the one in \f[B]srcpath\f[] relative to
+\f[B]/var/lib/muppet/files\f[].
+The \f[B]owner\f[] and \f[B]group\f[] parameters are straightforward.
+The \f[B]mode\f[] parameter looks like \f[B]\-rwxr\-xr\-x\f[].
+Note in particular the leading \f[B]\-\f[].
+.RS
+.RE
+.TP
+.B visudo(\[aq]srcpath\[aq], \[aq]filename\[aq], variables=None)
+Write file to \f[B]path\f[] from the one in \f[B]srcpath\f[] relative to
+\f[B]/var/lib/muppet/files\f[].
+.RS
+.RE
+.PP
+The \f[B]variables\f[] parameter is a dictionary mapping each variable
+available in the template to a value.
+For instance, \f[B]variable={\[aq]name\[aq]: \[aq]foo\[aq]}\f[], will
+cause \f[B]${name}\f[] to evaluate to \f[B]foo\f[] in the config file.
+If empty or \f[B]None\f[], which is the default, it will cause
+templating to be disabled.
+.SH FILESYSTEM FUNCTIONS
+.TP
+.B mkdir(\[aq]path\[aq], \[aq]owner\[aq], \[aq]group\[aq], \[aq]mode\[aq])
+Make directory at \f[B]path\f[] setting the ownership to \f[B]owner\f[]
+and \f[B]group\f[].
+The \f[B]mode\f[] parameter looks like \f[B]\-rwxr\-xr\-x\f[].
+Note in particular the leading \f[B]\-\f[].
+.RS
+.RE
+.TP
+.B symlink(\[aq]source\[aq], \[aq]name\[aq], \[aq]owner\[aq], \[aq]group\[aq])
+Make symbolic link at \f[B]name\f[] from \f[B]source\f[], belonging to
+\f[B]owner\f[] in \f[B]group\f[].
+.RS
+.RE
+.TP
+.B mv(\[aq]source\[aq], \[aq]destination\[aq])
+Move file at path \f[B]source\f[] to path \f[B]destination\f[] is it
+doesn\[aq]t already exists.
+.RS
+.RE
+.TP
+.B rmtree(\[aq]path\[aq]):
+Recursively remove files under \f[B]path\f[].
+.RS
+.RE
+.TP
+.B chmod(\[aq]path\[aq], \[aq]modestr\[aq])
+Change mode of file located at \f[B]path\f[] to a \f[B]modestr\f[]
+looking like \f[B]\-rwxr\-xr\-x\f[].
+.RS
+.RE
+.TP
+.B resource(\[aq]path\[aq])
+Return path to resource file which is available under
+\f[B]resources/\f[].
+.RS
+.RE
+.SH PACKAGE MANAGEMENT FUNCTIONS
+.TP
+.B install(\[aq]package\[aq], \[aq]package\[aq], ...)
+Install packages whose names are passed as parameters.
+Packages coming from repositories you don\[aq]t have specified a key for
+beforehand will loudly fail to install.
+In fact, even \f[B]apt\-get update\f[] will grumble.
+You can specify a version to install by writing \f[B]name=version\f[].
+.RS
+.RE
+.TP
+.B purge(\[aq]package\[aq], \[aq]package\[aq], ..., [maintainer=\[aq]name\[aq]])
+Purge packages which aren\[aq]t maintained by the optionally\-specified
+maintainer.
+For instance, to purge the \f[B]foo\f[] and \f[B]bar\f[] packages only
+if they\[aq]re not maintained by John Doe:
+.RS
+.IP
+.nf
+\f[C]
+purge(\[aq]foo\[aq],\ \[aq]bar\[aq],\ maintainer=\[aq]John\ Doe\ <john.doe\@muppet.org>\[aq])
+\f[]
+.fi
+.RE
+.TP
+.B addmuppetrepo()
+Add the \f[B]/var/lib/muppet/repository\f[] (or wherever the muppet
+directory is) DEB package repository to
+\f[B]/etc/apt/sources.list.d\f[].
+.RS
+.RE
+.TP
+.B getselections()
+Return a set of installed packages.
+.RS
+.RE
+.TP
+.B aptkey(\[aq]path\[aq])
+Run \f[B]apt\-key add\f[] against the key file at path.
+.RS
+.RE
+.SH USER MANAGEMENT FUNCTIONS
+.TP
+.B adduser(\[aq]user\[aq], \[aq]password\[aq], \[aq]shell\[aq])
+Add user with an encrypted password which can be generated with
+\f[B]muppet encrypt\f[].
+.RS
+.RE
+.TP
+.B addgroup(\[aq]group\[aq], gid=None)
+Add group, optionally with a \f[B]gid\f[] being an integer.
+.RS
+.RE
+.TP
+.B usermod(\[aq]user\[aq], uid=None, group=\[aq]\[aq], groups=[])
+Modify user account identified with \f[B]user\f[] by changing its
+\f[B]uid\f[] integer, primary \f[B]group\f[] and adding secondary
+\f[B]groups\f[].
+.RS
+.RE
+.TP
+.B users()
+Return a list of (user, group) tuples as specified with the
+\f[B]\-\-users\f[] option.
+.RS
+.RE
+.SH FLOW CONTROL FUNCTIONS
+.TP
+.B include(\[aq]module\[aq])
+Execute a Python module in \f[B]manifests/\f[].
+The parameter shouldn\[aq]t include the \f[B]\&.py\f[] extension.
+.RS
+.RE
+.TP
+.B resolution()
+Try getting screen resolution from xrandr, then fbset, then assume
+1024×768.
+Return a (width, height) tuple of integers.
+.RS
+.RE
+.TP
+.B islaptop()
+Return the number of power supplies.
+It is believed that laptops have at least one and fixed computer none.
+So if \f[B]islaptop()\f[] evaluates to \f[B]True\f[], it\[aq]s because
+the host has at least one power supply and is therefore a laptop.
+If \f[B]islaptop()\f[] evaluates to \f[B]False\f[], it\[aq]s because it
+has no power supply and is therefore a fixed computer.
+.RS
+.RE
+.TP
+.B hostname()
+Return the partially qualified domain name, e.g.
+just \[aq]foo\[aq], not \[aq]foo.muppet.org\[aq].
+.RS
+.RE
+.TP
+.B release()
+Return the release, e.g.
+\[aq]13.10\[aq] for Ubuntu Saucy Salamander.
+.RS
+.RE
+.SH MISCELLANEOUS FUNCTIONS
+.TP
+.B run(\[aq]command line\[aq])
+Run a command line, which may include shell tricks.
+Log stdout and stderr.
+.RS
+.RE
+.TP
+.B firewall(action=None, fromhost=None, toport=None, proto=None)
+Enable firewall and add rule with ufw.
+Actions are for instance \f[B]allow\f[].
+.RS
+.RE
+.TP
+.B addprinter(\[aq]name\[aq], \[aq]uri\[aq], \[aq]ppd\[aq])
+Add printer called \f[B]name\f[] located at \f[B]uri\f[].
+The model can be specified either as a \f[B]ppd\f[] parameter as
+reported by \f[B]lpinfo\f[] or from with a PPD file located at
+\f[B]ppd\f[].
+.RS
+.RE
+.SH AUTHORS
+Jérôme Belleman.
