@@ -20,6 +20,7 @@ import time
 import socket
 
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
+WARNSTATUS = "%s in status '%s', neither enabled nor disabled - aborting"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
@@ -181,14 +182,30 @@ def run(command):
     Run command
     '''
 
-    logging.info(command)
     if not __muppet__['_dryrun']:
         proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _messages(proc)
         return proc.returncode
 
 def _updaterc(service, state):
-    if exists('/etc/init/%s.conf' % service): # If it's Upstart
+    if os.path.exists('/bin/systemctl'): # If it's systemd
+        # Get service status
+        proc = Popen(['systemctl', 'is-enabled', service], stdout=PIPE)
+        out, _ = proc.communicate()
+        out = out.strip()
+
+        # Change status if needs be
+        if out not in ('enabled', 'disabled'):
+            logging.warn(WARNSTATUS, service, out)
+        elif out == 'enabled' and state == 'K' or \
+            out != 'enabled' and state == 'S':
+            action = 'enable' if state == 'S' else 'disable'
+            cmd = ['systemctl', action, service]
+            logging.info(' '.join(cmd))
+            if not __muppet__['_dryrun']:
+                proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+                _messages(proc)
+    elif exists('/etc/init/%s.conf' % service): # If it's Upstart
         path = '/etc/init/%s.override' % service
         if state == 'S':
             if exists(path): # Make sure it's not already enabled
