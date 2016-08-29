@@ -558,17 +558,19 @@ def _edit(localpath, path, contents):
         # Will dereference before copying stat
         shutil.copystat(localpath, expanduser(path))
 
-def _contents(localpath, variables, verbatim):
+def _contents(localpath, variables):
     '''
     Compile config file contents
     '''
 
-    if verbatim:
+    if variables:
+        # TODO Gracefully skip applying template when Mako is missing,
+        # and suggest it be installed
+        contents = _template(localpath, variables)
+    else:
         configfile = open(localpath)
         contents = configfile.read()
         configfile.close()
-    else:
-        contents = _template(localpath, variables)
 
     return contents
 
@@ -637,7 +639,7 @@ def _localpath(path):
 
     return __muppet__['_directory'] + localpath
 
-def edit(path, owner, group, mode, variables=None, verbatim=True):
+def edit(path, owner, group, mode, variables=None):
     '''
     Edit config file with template
     '''
@@ -655,7 +657,7 @@ def edit(path, owner, group, mode, variables=None, verbatim=True):
 
     try:
         # Compile config file contents
-        contents = _contents(localpath, variables, verbatim)
+        contents = _contents(localpath, variables)
 
         # Diff
         diff = _diff(path, contents)
@@ -706,7 +708,7 @@ def islaptop():
 
     return len(os.listdir('/sys/class/power_supply'))
 
-def visudo(filename, variables=None, verbatim=True):
+def visudo(filename, variables=None):
     '''
     Edit sudoers
     '''
@@ -719,7 +721,7 @@ def visudo(filename, variables=None, verbatim=True):
     localpath = _localpath(path)
 
     # Compile config file contents
-    contents = _contents(localpath, variables, verbatim)
+    contents = _contents(localpath, variables)
 
     # Diff
     diff = _diff(path, contents)
