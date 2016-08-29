@@ -18,6 +18,7 @@ import errno
 from select import select
 import time
 import socket
+import platform
 
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 WARNSTATUS = "%s in status '%s', neither enabled nor disabled - aborting"
@@ -773,6 +774,9 @@ def visudo(filename, variables=None):
 def hostname():
     return socket.gethostname()
 
+def architecture():
+    return platform.architecture()[0]
+
 def release():
     devnull = open(os.devnull, 'w')
     proc = Popen(['/usr/bin/lsb_release', '-rs'], stdout=PIPE, stderr=devnull)
@@ -812,6 +816,7 @@ __muppet__ = {
               'resolution':         resolution,
               'islaptop':           islaptop,
               'hostname':           hostname,
+              'architecture':       architecture,
               'release':            release,
               'isjustinstalled':    isjustinstalled,
               'notjustinstalled':   notjustinstalled,
