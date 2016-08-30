@@ -775,7 +775,9 @@ def hostname():
     return socket.gethostname()
 
 def architecture():
-    return platform.architecture()[0]
+    proc = Popen(['/usr/bin/dpkg', '--print-architecture'], stdout=PIPE)
+    out, _ = proc.communicate()
+    return out.strip()
 
 def release():
     devnull = open(os.devnull, 'w')
