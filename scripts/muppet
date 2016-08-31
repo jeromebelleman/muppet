@@ -22,7 +22,7 @@ import muppet.functions
 # TODO Warn against running in X?
 # TODO Edit config files from files with a different name
 
-DIR = '~/.muppet'
+DIR = '/var/lib/muppet'
 CONNPATH = '/etc/NetworkManager/system-connections/'
 LOGFMT = '%(asctime)s %(levelname)s %(message)s'
 
@@ -164,8 +164,7 @@ def main():
     applyparser = subs.add_parser('apply', help="apply configuration",
                                   formatter_class=ArgumentDefaultsHelpFormatter)
     applyparser.add_argument('-d', '--directory', type=expanduser,
-                             help="configuration directory",
-                             default=DIR)
+                             help="Muppet directory", default=DIR)
     applyparser.add_argument('--dryrun', '-n', action='store_true',
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
