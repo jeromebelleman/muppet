@@ -21,7 +21,6 @@ import socket
 import platform
 
 WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
-WARNSTATUS = "%s in status '%s', neither enabled nor disabled - aborting"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
@@ -178,6 +177,23 @@ def _messages(proc):
                 if line:
                     logging.warning(line)
 
+def _logrun(*cmd):
+    '''
+    Run and log messages
+    '''
+
+    logging.info(' '.join(cmd))
+    if not __muppet__['_dryrun']:
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        _messages(proc)
+
+def _comm(*cmd):
+    '''
+    Run command and return stdout, stderr
+    '''
+
+    return Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
 def run(command):
     '''
     Run command
@@ -188,54 +204,71 @@ def run(command):
         _messages(proc)
         return proc.returncode
 
-def _updaterc(service, state):
+def _service(service, action, status):
+    '''
+    Manage services with init, Upstart and systemd
+    '''
+
     if os.path.exists('/bin/systemctl'): # If it's systemd
-        # Get service status
-        proc = Popen(['systemctl', 'is-enabled', service], stdout=PIPE)
-        out, _ = proc.communicate()
-        out = out.strip()
+        # Enable/disable service if needs be
+        isenabled = _comm('/bin/systemctl', 'is-enabled', service)[0].strip()
+        if isenabled not in ('enabled', 'disabled'):
+            logging.warn("%s is %s, won't enable or disable",
+                         service, isenabled)
+        elif action not in isenabled: # E.g. 'enable' not in 'disabled'
+            _logrun('/bin/systemctl', action, service)
 
-        # Change status if needs be
-        if out not in ('enabled', 'disabled'):
-            logging.warn(WARNSTATUS, service, out)
-        elif out == 'enabled' and state == 'K' or \
-            out != 'enabled' and state == 'S':
-            action = 'enable' if state == 'S' else 'disable'
-            cmd = ['systemctl', action, service]
-            logging.info(' '.join(cmd))
-            if not __muppet__['_dryrun']:
-                proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-                _messages(proc)
+        # Start/stop service if needs be
+        isactive = _comm('/bin/systemctl', 'is-active', service)[0].strip()
+        if isactive not in ('active', 'inactive'):
+            logging.warn("%s is %s, won't start or stop", service, isactive)
+        if action == 'enable' and isactive == 'inactive':
+            _logrun('/bin/systemctl', 'start', service)
+        elif action == 'disable' and isenabled == 'active':
+            _logrun('/bin/systemctl', 'stop', service)
     elif exists('/etc/init/%s.conf' % service): # If it's Upstart
+        # Enable/disable service if needs be
         path = '/etc/init/%s.override' % service
-        if state == 'S':
-            if exists(path): # Make sure it's not already enabled
-                logging.info("removing %s", path)
-                if not __muppet__['_dryrun']:
-                    os.remove(path)
-        else:
-            if not exists(path): # Make sure it's not already disabled
-                logging.info("adding %s", path)
-                if not __muppet__['_dryrun']:
-                    fhl = open(path, 'w')
-                    fhl.write('manual')
-                    fhl.close()
-    else: # If it's init
+        if action == 'enable' and exists(path):
+            logging.info("removing %s", path)
+            if not __muppet__['_dryrun']:
+                os.remove(path)
+        elif action == 'disable' and not exists(path):
+            logging.info("adding %s", path)
+            if not __muppet__['_dryrun']:
+                fhl = open(path, 'w')
+                fhl.write('manual')
+                fhl.close()
+
+        # Start/stop service if needs be
+        isactive, _ = _comm('/sbin/status', service)
+        if 'start' not in isactive and 'stop' not in isactive:
+            logging.warn("%s is %s, won't start or stop", service, isactive)
+        if action == 'enable' and 'stop' in isactive:
+            _logrun('/sbin/start', service)
+        elif action == 'disable' and 'start' in isactive:
+            _logrun('/sbin/stop', service)
+    else: # If it's init, which still does happen with Raring
+        # Enable/disable service if needs be
         for filename in os.listdir('/etc/rc2.d'):
-            # Make sure it's not already disabled
-            if service in filename and not filename.startswith(state):
-                action = 'enable' if state == 'S' else 'disable'
-                cmd = ['update-rc.d', service, action]
-                logging.info(' '.join(cmd))
-                if not __muppet__['_dryrun']:
-                    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-                    _messages(proc)
+            if service == filename[3:]:
+                isenabled = 'enabled' if filename[0] == 'S' else 'disabled'
+                if action not in isenabled: # E.g. 'enable' not in 'disabled'
+                    _logrun('/usr/sbin/update-rc.d', service, action)
 
-def enable(service):
-    _updaterc(service, 'S')
+        # Start/stop service if needs be
+        isactive, _ = _comm('/usr/sbin/service', service, 'status')
+        if status and status in isactive:
+            if action == 'enable':
+                _logrun('/usr/sbin/service', service, 'start')
+            elif action == 'disable':
+                _logrun('/usr/sbin/service', service, 'stop')
 
-def disable(service):
-    _updaterc(service, 'K')
+def enable(service, status=None):
+    _service(service, 'enable', status)
+
+def disable(service, status=None):
+    _service(service, 'disable', status)
 
 def _getmaintainer(maintainer):
     '''
@@ -624,6 +657,24 @@ def mkdir(path, owner, group, mode):
         logging.warning(exc)
 
     return change
+
+def link(source, name, owner, group):
+    # TODO Check what it does with hardlinks
+    if islink(name) and os.path.realpath(name) != source: # TODO realpath alone good enough?
+        logging.warning("removing symlink %s", name)
+        if not __muppet__['_dryrun']:
+            os.remove(name)
+
+    if not exists(name) or islink(name):
+        logging.warning("symlinking %s to %s", source, name)
+        if not __muppet__['_dryrun']:
+            os.symlink(source, name)
+    else:
+        logging.warning(WARNLINK, path)
+
+    # TODO Change the ownership with _chown
+
+
 
 def _localpath(path):
     '''
