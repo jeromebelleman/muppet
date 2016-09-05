@@ -6,7 +6,7 @@ Common configuration options
 '''
 
 import os, sys
-from os.path import expanduser, exists, islink
+from os.path import expanduser, exists, lexists, islink
 import pwd, grp
 import stat
 from subprocess import Popen, PIPE, call
@@ -458,7 +458,7 @@ def usermod(login, uid=None, group=None, groups=[]):
             proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
             _messages(proc)
 
-def _chown(path, status, owner, group):
+def _chown(path, status, owner, group, link=False):
     '''
     Change owner
     '''
@@ -468,7 +468,10 @@ def _chown(path, status, owner, group):
     if uid != status.st_uid or gid != status.st_gid:
         logging.info("chowning %s:%s %s", owner, group, path)
         if not __muppet__['_dryrun']:
-            os.chown(expanduser(path), uid, gid)
+            if link:
+                os.lchown(expanduser(path), uid, gid)
+            else:
+                os.chown(expanduser(path), uid, gid)
         return True
     else:
         return False
@@ -658,22 +661,33 @@ def mkdir(path, owner, group, mode):
 
     return change
 
-def link(source, name, owner, group):
-    # TODO Check what it does with hardlinks
-    if islink(name) and os.path.realpath(name) != source: # TODO realpath alone good enough?
-        logging.warning("removing symlink %s", name)
-        if not __muppet__['_dryrun']:
-            os.remove(name)
 
-    if not exists(name) or islink(name):
-        logging.warning("symlinking %s to %s", source, name)
-        if not __muppet__['_dryrun']:
-            os.symlink(source, name)
-    else:
-        logging.warning(WARNLINK, path)
+def symlink(source, name, owner, group):
+    '''
+    Make symbolic link
+    '''
 
-    # TODO Change the ownership with _chown
+    change = False
 
+    try:
+        # Create link
+        if not lexists(expanduser(name)):
+            logging.info("symlinking %s to %s", source, name)
+            if not __muppet__['_dryrun']:
+                # Make link
+                os.symlink(expanduser(source), expanduser(name))
+            change |= True
+
+        # Change ownership
+        if islink(expanduser(name)):
+            change |= _chown(expanduser(name), os.lstat(expanduser(name)),
+                             owner, group, True)
+        else:
+            logging.warn("%s isn't a link - aborting", name)
+    except OSError, exc:
+        logging.warning(exc)
+
+    return change
 
 
 def _localpath(path):
@@ -850,6 +864,7 @@ __muppet__ = {
               'visudo':             visudo,
               'resource':           resource,
               'backup':             backup,
+              'symlink':            symlink,
 
               # Package management
               'install':            install,
