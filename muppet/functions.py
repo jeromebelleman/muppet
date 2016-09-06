@@ -580,7 +580,7 @@ def backup(path):
 
     return True
 
-def _edit(localpath, path, contents):
+def _edit(srcpath, path, contents):
     '''
     Edit config file
     '''
@@ -594,9 +594,9 @@ def _edit(localpath, path, contents):
     logging.info("copying stat to %s", path)
     if not __muppet__['_dryrun']:
         # Will dereference before copying stat
-        shutil.copystat(localpath, expanduser(path))
+        shutil.copystat(srcpath, expanduser(path))
 
-def _contents(localpath, variables):
+def _contents(srcpath, variables):
     '''
     Compile config file contents
     '''
@@ -604,9 +604,9 @@ def _contents(localpath, variables):
     if variables:
         # TODO Gracefully skip applying template when Mako is missing,
         # and suggest it be installed
-        contents = _template(localpath, variables)
+        contents = _template(srcpath, variables)
     else:
-        configfile = open(localpath)
+        configfile = open(srcpath)
         contents = configfile.read()
         configfile.close()
 
@@ -669,30 +669,14 @@ def symlink(source, name, owner, group):
     return change
 
 
-def _localpath(path):
-    '''
-    Get local path
-    '''
-
-    for entry in pwd.getpwall():
-        if entry[5] != '/' and expanduser(path).startswith(entry[5]):
-            localpath = '/files/user' + expanduser(path)[len(entry[5]):]
-            break
-    else:
-        localpath = '/files/root' + path
-
-
-    return __muppet__['_directory'] + localpath
-
-def edit(path, owner, group, mode, variables=None):
+def edit(srcpath, path, owner, group, mode, variables=None):
     '''
     Edit config file with template
     '''
 
     change = False
 
-    # Get local path 
-    localpath = _localpath(path)
+    srcpath = '%s/files/%s' % (__muppet__['_directory'], srcpath)
 
     if islink(expanduser(path)):
         # If our config file template maps to a symlink, we're on for a lot of
@@ -702,7 +686,7 @@ def edit(path, owner, group, mode, variables=None):
 
     try:
         # Compile config file contents
-        contents = _contents(localpath, variables)
+        contents = _contents(srcpath, variables)
 
         # Diff
         diff = _diff(path, contents)
@@ -713,7 +697,7 @@ def edit(path, owner, group, mode, variables=None):
                 return False
 
             # Edit config file
-            _edit(localpath, path, contents)
+            _edit(srcpath, path, contents)
             change = True
 
         # Change attributes
@@ -761,12 +745,10 @@ def visudo(filename, variables=None):
     change = False
 
     path = '%s/%s' % (SUDOERSD, filename)
-
-    # Get local path 
-    localpath = _localpath(path)
+    srcpath = '%s/files/%s/%s' % (__muppet__['_directory'], SUDOERSD, filename)
 
     # Compile config file contents
-    contents = _contents(localpath, variables)
+    contents = _contents(srcpath, variables)
 
     # Diff
     diff = _diff(path, contents)
@@ -789,7 +771,7 @@ def visudo(filename, variables=None):
                 lockfile = os.open(path + '.tmp', os.O_CREAT | os.O_EXCL)
 
                 # Edit sudoers file
-                _edit(localpath, path, contents)
+                _edit(srcpath, path, contents)
 
                 # Remove lockfile
                 os.close(lockfile)
