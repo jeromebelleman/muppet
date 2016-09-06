@@ -6,7 +6,7 @@ Common configuration options
 '''
 
 import os, sys
-from os.path import expanduser, exists, lexists, islink
+from os.path import expanduser, exists, lexists, islink, isdir
 import pwd, grp
 import stat
 from subprocess import Popen, PIPE, call
@@ -20,7 +20,6 @@ import time
 import socket
 import platform
 
-WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
@@ -536,6 +535,8 @@ def backup(path):
     Backup config file
     '''
 
+    # FIXME Shouldn't that be an internal (_*) function?
+
     components = expanduser(path).split('/')
 
     # Create backup directory
@@ -611,20 +612,6 @@ def _contents(localpath, variables):
 
     return contents
 
-def _mkdir(localpath, path):
-    '''
-    Make directory
-    '''
-
-    logging.info("making directory %s", path)
-    if not __muppet__['_dryrun']:
-        os.mkdir(expanduser(path))
-
-    logging.info("copying stat to %s", path)
-    if not __muppet__['_dryrun']:
-        # Will dereference before copying stat
-        shutil.copystat(localpath, expanduser(path))
-
 def mkdir(path, owner, group, mode):
     '''
     Make directory and set attributes
@@ -632,30 +619,22 @@ def mkdir(path, owner, group, mode):
 
     change = False
 
-    # Get local path 
-    localpath = _localpath(path)
-
     try:
-        if islink(expanduser(path)):
-            # If this directory maps to a symlink, we're on for a lot of
-            # confusion, so let's not allow this
-            logging.warning(WARNLINK, path)
-            return False
-
         # Make directory
-        if not os.path.isdir(expanduser(path)):
-            _mkdir(localpath, path)
-            change = True
+        if not lexists(expanduser(path)):
+            logging.info("making directory %s", path)
+            if not __muppet__['_dryrun']:
+                os.mkdir(expanduser(path))
+            change |= True
 
-        # Change attributes
-        if exists(expanduser(path)):
-            status = os.stat(expanduser(path))
-
-            # Change owner and group
-            change |= _chown(path, status, owner, group)
+        if isdir(expanduser(path)):
+            # Change ownership
+            change |= _chown(path, os.stat(expanduser(path)), owner, group)
 
             # Change mode
             change |= chmod(path, mode)
+        elif not __muppet__['_dryrun']:
+            logging.warn("%s isn't a directory - aborting", path)
     except OSError, exc:
         logging.warning(exc)
 
@@ -682,7 +661,7 @@ def symlink(source, name, owner, group):
         if islink(expanduser(name)):
             change |= _chown(expanduser(name), os.lstat(expanduser(name)),
                              owner, group, True)
-        else:
+        elif not __muppet__['_dryrun']:
             logging.warn("%s isn't a link - aborting", name)
     except OSError, exc:
         logging.warning(exc)
