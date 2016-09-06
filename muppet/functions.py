@@ -541,7 +541,7 @@ def backup(path):
 
     # Create backup directory
     time = __muppet__['_time'].strftime(TIMEFMT)
-    backupdir = '%s/backups/%s' % (__muppet__['_runtime'], time)
+    backupdir = '%s/backups/%s' % (__muppet__['_directory'], time)
     if not exists(backupdir) and not __muppet__['_dryrun']:
         os.makedirs(backupdir)
 

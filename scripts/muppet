@@ -23,6 +23,7 @@ import muppet.functions
 # TODO Edit config files from files with a different name
 
 DIR = '/var/lib/muppet'
+LOG = '/var/log/muppet.log'
 CONNPATH = '/etc/NetworkManager/system-connections/'
 LOGFMT = '%(asctime)s %(levelname)s %(message)s'
 
@@ -99,7 +100,7 @@ def applyconf(args):
 
     # Create runtime directory if needs be
     try:
-        os.mkdir(args.runtime)
+        os.mkdir(args.directory)
     except OSError, exc:
         if exc.errno != errno.EEXIST:
             print >> sys.stderr, exc
@@ -116,7 +117,7 @@ def applyconf(args):
     logger.addHandler(handler)
 
     # Messages to logfile
-    handler = logging.FileHandler(args.runtime + '/log')
+    handler = logging.FileHandler(args.log)
     formatter = logging.Formatter(LOGFMT)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -125,7 +126,6 @@ def applyconf(args):
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
     muppet.functions.__muppet__['_verbose'] = args.verbose
     muppet.functions.__muppet__['_directory'] = args.directory
-    muppet.functions.__muppet__['_runtime'] = args.runtime
     muppet.functions.__muppet__['_users'] = args.users
     muppet.functions.__muppet__['_time'] = datetime.datetime.now()
     muppet.functions.__muppet__['_sid'] = sid
@@ -169,9 +169,8 @@ def main():
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
                              help="be more verbose")
-    applyparser.add_argument('--runtime', '-r', default=DIR,
-                             help="write messages to log file too",
-                             type=expanduser)
+    applyparser.add_argument('--log', '-l', default=LOG,
+                             help="log file path", type=expanduser)
     helpmsg = "user:group pairs to apply the userwide config to"
     applyparser.add_argument('--users', '-u', nargs='+', default=[],
                              help=helpmsg)
