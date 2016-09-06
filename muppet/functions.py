@@ -115,6 +115,22 @@ def firewall(action=None, fromhost=None, toport=None, proto=None):
             proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
             _messages(proc)
 
+def addprinter(name, uri, ppd):
+    '''
+    Add printer
+    '''
+
+    with open(os.devnull, 'w') as devnull:
+        args = ['/usr/bin/lpstat', '-p', name]
+        if call(args, stdout=devnull, stderr=devnull) != 0:
+            _logrun('/usr/sbin/lpadmin',
+                    '-E',
+                    '-p', name,
+                    '-v', uri,
+                    '-P' if exists(ppd) else '-m', ppd,
+                    '-E')
+
+
 def resolution():
     '''
     Get screen resolution
@@ -817,6 +833,7 @@ __muppet__ = {
               # Execution
               'run':                run,
               'firewall':           firewall,
+              'addprinter':         addprinter,
               'enable':             enable,
               'disable':            disable,
 
