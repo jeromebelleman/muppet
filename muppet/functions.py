@@ -547,7 +547,7 @@ def _template(path, variables):
     tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
     return tpt.render(**variables) if variables else tpt.render()
 
-def backup(path):
+def _backup(path):
     '''
     Backup config file
     '''
@@ -710,7 +710,7 @@ def edit(srcpath, path, owner, group, mode, variables=None):
 
         if diff:
             # Back up config file
-            if exists(expanduser(path)) and not backup(path):
+            if exists(expanduser(path)) and not _backup(path):
                 return False
 
             # Edit config file
@@ -781,7 +781,7 @@ def visudo(filename, variables=None):
             devnull.close()
             if process.returncode == 0:
                 # Back up sudoers file
-                if exists(path) and not backup(path):
+                if exists(path) and not _backup(path):
                     return
 
                 # Create lockfile
@@ -842,7 +842,6 @@ __muppet__ = {
               'mkdir':              mkdir,
               'visudo':             visudo,
               'resource':           resource,
-              'backup':             backup,
               'symlink':            symlink,
 
               # Package management

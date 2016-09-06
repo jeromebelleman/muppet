@@ -20,7 +20,6 @@ import muppet.functions
 
 # TODO Improve backtrace reporting from templates
 # TODO Warn against running in X?
-# TODO Edit config files from files with a different name
 
 DIR = '/var/lib/muppet'
 LOG = '/var/log/muppet.log'
