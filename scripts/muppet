@@ -139,7 +139,7 @@ def applyconf(args):
 
     # Apply manifests
     try:
-        execfile(args.directory + '/index.py',
+        execfile(args.directory + '/manifests/index.py',
                  muppet.functions.__muppet__.copy())
     except SystemExit, exc:
         logging.warning("Exited: %s", exc)

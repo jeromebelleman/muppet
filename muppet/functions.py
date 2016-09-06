@@ -59,7 +59,8 @@ def include(module):
     Execute module with common globals
     '''
 
-    execfile('%s/%s.py' % (__muppet__['_directory'], module), __muppet__.copy())
+    execfile('%s/manifests/%s.py' % \
+        (__muppet__['_directory'], module), __muppet__.copy())
 
 def firewall(action=None, fromhost=None, toport=None, proto=None):
     '''
