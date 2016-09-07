@@ -4,8 +4,9 @@
 Manage configurations
 '''
 
-import os, sys
-from os.path import expanduser, dirname
+import os
+import os.path
+import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import errno
 import logging
@@ -16,7 +17,7 @@ import uuid
 import stat
 import time
 
-import muppet.functions
+import muppet.functions # pylint: disable=no-name-in-module
 
 # TODO Improve backtrace reporting from templates
 # TODO Warn against running in X?
@@ -37,6 +38,10 @@ def encrypt(_):
     print crypt.crypt(getpass.getpass(), '$6$%s' % uuid.uuid4())
 
 def connect(connection, dryrun):
+    '''
+    Connect to network
+    '''
+
     # Get hardware address
     proc = subprocess.Popen(['ifconfig', 'wlan0'], stdout=subprocess.PIPE)
     first = True
@@ -60,10 +65,10 @@ def connect(connection, dryrun):
         if not dryrun:
             with open(path, 'w') as fhl:
                 fhl.write(template.substitute(
-                                              hwaddr=hwaddr,
-                                              ssid=conn,
-                                              uuid=uuid.uuid4(),
-                                             ))
+                    hwaddr=hwaddr,
+                    ssid=conn,
+                    uuid=uuid.uuid4(),
+                ))
                 os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
     # Connect
@@ -82,7 +87,7 @@ def applyconf(args):
     '''
     Apply configuration
     '''
-            
+
     if args.daemonise:
         sid = os.getsid(os.getpid())
 
@@ -110,16 +115,16 @@ def applyconf(args):
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     # Messages to TTY
-    handler = logging.StreamHandler()
+    streamhandler = logging.StreamHandler()
     formatter = logging.Formatter("%(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    streamhandler.setFormatter(formatter)
+    logger.addHandler(streamhandler)
 
     # Messages to logfile
-    handler = logging.FileHandler(args.log)
+    filehandler = logging.FileHandler(args.log)
     formatter = logging.Formatter(LOGFMT)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    filehandler.setFormatter(formatter)
+    logger.addHandler(filehandler)
 
     # Set variables
     muppet.functions.__muppet__['_dryrun'] = args.dryrun
@@ -162,14 +167,14 @@ def main():
 
     applyparser = subs.add_parser('apply', help="apply configuration",
                                   formatter_class=ArgumentDefaultsHelpFormatter)
-    applyparser.add_argument('-d', '--directory', type=expanduser,
+    applyparser.add_argument('-d', '--directory', type=os.path.expanduser,
                              help="Muppet directory", default=DIR)
     applyparser.add_argument('--dryrun', '-n', action='store_true',
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
                              help="be more verbose")
     applyparser.add_argument('--log', '-l', default=LOG,
-                             help="log file path", type=expanduser)
+                             help="log file path", type=os.path.expanduser)
     helpmsg = "user:group pairs to apply the userwide config to"
     applyparser.add_argument('--users', '-u', nargs='+', default=[],
                              help=helpmsg)
