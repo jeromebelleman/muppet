@@ -218,7 +218,6 @@ def run(command):
     if not __muppet__['_dryrun']:
         proc = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _messages(proc)
-        return proc.returncode
 
 def _service(service, action, status):
     '''
