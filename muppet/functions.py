@@ -5,9 +5,10 @@
 Common configuration options
 '''
 
-import os, sys
-from os.path import expanduser, exists, lexists, islink, isdir
-import pwd, grp
+import os
+from os.path import expanduser, islink, isdir
+import pwd
+import grp
 import stat
 from subprocess import Popen, PIPE, call
 import logging
@@ -18,22 +19,23 @@ import errno
 from select import select
 import time
 import socket
-import platform
 
+WARNLINK = "%s is a link, you'd be on for a lot of confusion - aborting change"
 ROOT = '%s/files/root/%s'
 IMPORT = 'from muppet.functions import %s'
 SUDOERSD = '/etc/sudoers.d'
 MODES = [stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR, stat.S_IRGRP, stat.S_IWGRP,
          stat.S_IXGRP, stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]
 TIMEFMT = '%Y%m%d_%H%M%S'
-REFBSET = re.compile('^mode "(\d+)x(\d+).*"$')
-REXRANDR = re.compile('^\s+(\d+)x(\d+).*$')
-REID = re.compile('''^uid=(?P<uid>\d+)\([^)]+\)[ ]
-                      gid=\d+\((?P<group>[^)]+)\)[ ]
-                      groups=(?P<groups>.+)$''', re.VERBOSE)
-REFIREWALL = re.compile('''^(?P<toport>\d+)(/(?P<proto>\w+))?[ ]+
-                            (?P<action>\w+)[ ]+
-                            (?P<fromhost>[\d\.]+(/\d+)?)''', re.VERBOSE)
+REFBSET = re.compile(r'^mode "(\d+)x(\d+).*"$')
+REXRANDR = re.compile(r'^\s+(\d+)x(\d+).*$')
+REID = re.compile(r'''^uid=(?P<uid>\d+)\([^)]+\)[ ]
+                       gid=\d+\((?P<group>[^)]+)\)[ ]
+                       groups=(?P<groups>.+)$''', re.VERBOSE)
+REFIREWALL = re.compile(r'''^(?P<toport>\d+)(/(?P<proto>\w+))?[ ]+
+                             (?P<action>\w+)[ ]+
+                             (?P<fromhost>[\d\.]+(/\d+)?)''', re.VERBOSE)
+STATUS, NOWHERE, RULES = range(3)
 
 def resource(res):
     '''
@@ -68,7 +70,6 @@ def firewall(action=None, fromhost=None, toport=None, proto=None):
     '''
 
     # Check firewall status
-    STATUS, NOWHERE, RULES = range(3)
     proc = Popen(['ufw', 'status'], stdout=PIPE, stderr=PIPE)
     out, err = proc.communicate()
 
@@ -81,7 +82,8 @@ def firewall(action=None, fromhost=None, toport=None, proto=None):
             _, status = line.split()
             state = NOWHERE
         elif state == NOWHERE:
-            if line[:2] == '--': state = RULES
+            if line[:2] == '--':
+                state = RULES
         elif state == RULES:
             match = REFIREWALL.match(line)
             if match:
@@ -89,7 +91,7 @@ def firewall(action=None, fromhost=None, toport=None, proto=None):
                               match.group('proto'), match.group('fromhost'),
                               int(match.group('toport'))))
             else:
-                logging.warn("couldn't parse ufw status: %s" % line)
+                logging.warn("couldn't parse ufw status: %s", line)
 
     if proc.returncode:
         logging.warn(err[7:-1])
@@ -127,7 +129,7 @@ def addprinter(name, uri, ppd):
                     '-E',
                     '-p', name,
                     '-v', uri,
-                    '-P' if exists(ppd) else '-m', ppd,
+                    '-P' if os.path.exists(ppd) else '-m', ppd,
                     '-E')
 
 
@@ -138,20 +140,20 @@ def resolution():
 
     # Try with xrandr
     cmd = ['/usr/bin/xrandr']
-    logging.debug("getting screen resolution from %s" % ' '.join(cmd))
+    logging.debug("getting screen resolution from %s", ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REXRANDR.match(line)
         if match:
             width, height = match.groups()
             return int(width), int(height)
-    logging.debug("couldn't get resolution from %s" % ' '.join(cmd))
+    logging.debug("couldn't get resolution from %s", ' '.join(cmd))
     for line in proc.stderr:
         logging.debug(line.strip())
 
     # Try with fbset
     cmd = ['/bin/fbset']
-    logging.debug("getting screen resolution from %s instead" % ' '.join(cmd))
+    logging.debug("getting screen resolution from %s instead", ' '.join(cmd))
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
     for line in proc.stdout:
         match = REFBSET.match(line)
@@ -241,14 +243,14 @@ def _service(service, action, status):
             _logrun('/bin/systemctl', 'start', service)
         elif action == 'disable' and isenabled == 'active':
             _logrun('/bin/systemctl', 'stop', service)
-    elif exists('/etc/init/%s.conf' % service): # If it's Upstart
+    elif os.path.exists('/etc/init/%s.conf' % service): # If it's Upstart
         # Enable/disable service if needs be
         path = '/etc/init/%s.override' % service
-        if action == 'enable' and exists(path):
+        if action == 'enable' and os.path.exists(path):
             logging.info("removing %s", path)
             if not __muppet__['_dryrun']:
                 os.remove(path)
-        elif action == 'disable' and not exists(path):
+        elif action == 'disable' and not os.path.exists(path):
             logging.info("adding %s", path)
             if not __muppet__['_dryrun']:
                 fhl = open(path, 'w')
@@ -280,9 +282,17 @@ def _service(service, action, status):
                 _logrun('/usr/sbin/service', service, 'stop')
 
 def enable(service, status=None):
+    '''
+    Enable and turn on service
+    '''
+
     _service(service, 'enable', status)
 
 def disable(service, status=None):
+    '''
+    Disable and turn off service
+    '''
+
     _service(service, 'disable', status)
 
 def _getmaintainer(maintainer):
@@ -339,7 +349,7 @@ def install(*args):
     toinstall = set(args) - getselections()
     if toinstall:
         _aptget('install', toinstall, __muppet__['_dryrun'])
- 
+
 def purge(*args, **maintainer):
     '''
     Run apt-get purge
@@ -350,7 +360,8 @@ def purge(*args, **maintainer):
     if 'maintainer' in maintainer:
         topurge -= _getmaintainer(maintainer['maintainer'])
 
-    if topurge: _aptget('purge', topurge, __muppet__['_dryrun'])
+    if topurge:
+        _aptget('purge', topurge, __muppet__['_dryrun'])
 
 def aptkey(keyfile):
     '''
@@ -422,7 +433,7 @@ def addgroup(group, gid=None):
         knowngroup, _, knowngid, _ = line.split(':', 3)
         if group == knowngroup:
             if gid != int(knowngid):
-                logging.warning("%s exists but with GID %s", knowngid)
+                logging.warning("%s exists but with GID %s", group, knowngid)
             groups.close()
             return
     groups.close()
@@ -447,8 +458,8 @@ def usermod(login, uid=None, group='', groups=[]):
     match = REID.match(proc.stdout.next())
     curuid = int(match.group('uid'))
     curgid = match.group('group')
-    curgroups = set([grp.split('(')[1][:-1]
-                     for grp in match.group('groups').split(',')])
+    curgroups = set([secgrp.split('(')[1][:-1]
+                     for secgrp in match.group('groups').split(',')])
 
     # Change user and groups if needs be
     uid = ['-u', str(uid)] if uid and uid != curuid else []
@@ -551,26 +562,24 @@ def _backup(path):
     Backup config file
     '''
 
-    # FIXME Shouldn't that be an internal (_*) function?
-
     components = expanduser(path).split('/')
 
     # Create backup directory
-    time = __muppet__['_time'].strftime(TIMEFMT)
-    backupdir = '%s/backups/%s' % (__muppet__['_directory'], time)
-    if not exists(backupdir) and not __muppet__['_dryrun']:
+    now = __muppet__['_time'].strftime(TIMEFMT)
+    backupdir = '%s/backups/%s' % (__muppet__['_directory'], now)
+    if not os.path.exists(backupdir) and not __muppet__['_dryrun']:
         os.makedirs(backupdir)
 
     # Create local directories if needs be
     for i, _ in enumerate(components[1:-1], 2):
         localdir = '%s/%s' % (backupdir, '/'.join(components[1:i]))
-        if not exists(localdir) and not __muppet__['_dryrun']:
+        if not os.path.exists(localdir) and not __muppet__['_dryrun']:
             os.mkdir(localdir)
 
     # Write file backups
     logging.info("backing up %s to %s", path, localdir)
     localpath = '%s/%s' % (localdir, components[-1])
-    if exists(localpath):
+    if os.path.exists(localpath):
         logging.warning("%s already exists - aborting edit", localpath)
         return False
     else:
@@ -637,7 +646,7 @@ def mkdir(path, owner, group, mode):
 
     try:
         # Make directory
-        if not lexists(expanduser(path)):
+        if not os.path.lexists(expanduser(path)):
             logging.info("making directory %s", path)
             if not __muppet__['_dryrun']:
                 os.mkdir(expanduser(path))
@@ -666,7 +675,7 @@ def symlink(source, name, owner, group):
 
     try:
         # Create link
-        if not lexists(expanduser(name)):
+        if not os.path.lexists(expanduser(name)):
             logging.info("symlinking %s to %s", source, name)
             if not __muppet__['_dryrun']:
                 # Make link
@@ -709,7 +718,7 @@ def edit(srcpath, path, owner, group, mode, variables=None):
 
         if diff:
             # Back up config file
-            if exists(expanduser(path)) and not _backup(path):
+            if os.path.exists(expanduser(path)) and not _backup(path):
                 return False
 
             # Edit config file
@@ -717,7 +726,7 @@ def edit(srcpath, path, owner, group, mode, variables=None):
             change = True
 
         # Change attributes
-        if exists(expanduser(path)):
+        if os.path.exists(expanduser(path)):
             status = os.stat(expanduser(path))
 
             # Change owner and group
@@ -730,13 +739,13 @@ def edit(srcpath, path, owner, group, mode, variables=None):
         return False
 
     return change
-        
+
 def isjustinstalled():
     '''
     Check if OS was freshly installed
     '''
 
-    return not exists(__muppet__['_directory'] + '/notjustinstalled')
+    return not os.path.exists(__muppet__['_directory'] + '/notjustinstalled')
 
 def notjustinstalled():
     '''
@@ -780,7 +789,7 @@ def visudo(srcpath, filename, variables=None):
             devnull.close()
             if process.returncode == 0:
                 # Back up sudoers file
-                if exists(path) and not _backup(path):
+                if os.path.exists(path) and not _backup(path):
                     return
 
                 # Create lockfile
@@ -802,7 +811,7 @@ def visudo(srcpath, filename, variables=None):
                 logging.warning("%s busy - aborting edit", path)
 
     # Change attributes
-    if exists(path):
+    if os.path.exists(path):
         status = os.stat(path)
 
         # Change owner and group
@@ -814,14 +823,26 @@ def visudo(srcpath, filename, variables=None):
     return change
 
 def hostname():
+    '''
+    Return host name
+    '''
+
     return socket.gethostname()
 
 def architecture():
+    '''
+    Return architecture from dpkg
+    '''
+
     proc = Popen(['/usr/bin/dpkg', '--print-architecture'], stdout=PIPE)
     out, _ = proc.communicate()
     return out.strip()
 
 def release():
+    '''
+    Return Ubuntu release
+    '''
+
     devnull = open(os.devnull, 'w')
     proc = Popen(['/usr/bin/lsb_release', '-rs'], stdout=PIPE, stderr=devnull)
     out, _, = proc.communicate()
@@ -829,44 +850,44 @@ def release():
     return out.strip()
 
 __muppet__ = {
-              # Services
-              'enable':             enable,
-              'disable':            disable,
+    # Services
+    'enable':             enable,
+    'disable':            disable,
 
-              # Editing
-              'edit':               edit,
-              'visudo':             visudo,
+    # Editing
+    'edit':               edit,
+    'visudo':             visudo,
 
-              # Filesystem
-              'mkdir':              mkdir,
-              'symlink':            symlink,
-              'chmod':              chmod,
-              'resource':           resource,
+    # Filesystem
+    'mkdir':              mkdir,
+    'symlink':            symlink,
+    'chmod':              chmod,
+    'resource':           resource,
 
-              # Package management
-              'install':            install,
-              'purge':              purge,
-              'getselections':      getselections,
-              'aptkey':             aptkey,
+    # Package management
+    'install':            install,
+    'purge':              purge,
+    'getselections':      getselections,
+    'aptkey':             aptkey,
 
-              # User management
-              'adduser':            adduser,
-              'addgroup':           addgroup,
-              'usermod':            usermod,
-              'users':              users,
+    # User management
+    'adduser':            adduser,
+    'addgroup':           addgroup,
+    'usermod':            usermod,
+    'users':              users,
 
-              # Flow control
-              'include':            include,
-              'resolution':         resolution,
-              'islaptop':           islaptop,
-              'hostname':           hostname,
-              'architecture':       architecture,
-              'release':            release,
-              'isjustinstalled':    isjustinstalled,
-              'notjustinstalled':   notjustinstalled,
+    # Flow control
+    'include':            include,
+    'resolution':         resolution,
+    'islaptop':           islaptop,
+    'hostname':           hostname,
+    'architecture':       architecture,
+    'release':            release,
+    'isjustinstalled':    isjustinstalled,
+    'notjustinstalled':   notjustinstalled,
 
-              # Miscellaneous
-              'run':                run,
-              'firewall':           firewall,
-              'addprinter':         addprinter,
-             }
+    # Miscellaneous
+    'run':                run,
+    'firewall':           firewall,
+    'addprinter':         addprinter,
+}
