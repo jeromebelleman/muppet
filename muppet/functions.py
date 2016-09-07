@@ -437,7 +437,7 @@ def addgroup(group, gid=None):
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
         _messages(proc)
 
-def usermod(login, uid=None, group=None, groups=[]):
+def usermod(login, uid=None, group='', groups=[]):
     '''
     Modify user account
     '''
@@ -829,19 +829,19 @@ def release():
     return out.strip()
 
 __muppet__ = {
-              # Execution
-              'run':                run,
-              'firewall':           firewall,
-              'addprinter':         addprinter,
+              # Services
               'enable':             enable,
               'disable':            disable,
 
               # Editing
               'edit':               edit,
-              'mkdir':              mkdir,
               'visudo':             visudo,
-              'resource':           resource,
+
+              # Filesystem
+              'mkdir':              mkdir,
               'symlink':            symlink,
+              'chmod':              chmod,
+              'resource':           resource,
 
               # Package management
               'install':            install,
@@ -854,7 +854,6 @@ __muppet__ = {
               'addgroup':           addgroup,
               'usermod':            usermod,
               'users':              users,
-              'chmod':              chmod,
 
               # Flow control
               'include':            include,
@@ -865,4 +864,9 @@ __muppet__ = {
               'release':            release,
               'isjustinstalled':    isjustinstalled,
               'notjustinstalled':   notjustinstalled,
+
+              # Miscellaneous
+              'run':                run,
+              'firewall':           firewall,
+              'addprinter':         addprinter,
              }
