@@ -145,6 +145,8 @@ def applyconf(args):
     try:
         execfile(args.directory + '/manifests/index.py',
                  muppet.functions.__muppet__.copy())
+    except IOError, exc:
+        logging.warning(exc)
     except SystemExit, exc:
         logging.warning("Exited: %s", exc)
 
