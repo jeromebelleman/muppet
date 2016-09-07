@@ -753,7 +753,7 @@ def islaptop():
 
     return len(os.listdir('/sys/class/power_supply'))
 
-def visudo(filename, variables=None):
+def visudo(srcpath, filename, variables=None):
     '''
     Edit sudoers
     '''
@@ -761,7 +761,7 @@ def visudo(filename, variables=None):
     change = False
 
     path = '%s/%s' % (SUDOERSD, filename)
-    srcpath = '%s/files/%s/%s' % (__muppet__['_directory'], SUDOERSD, filename)
+    srcpath = '%s/files/%s' % (__muppet__['_directory'], srcpath)
 
     # Compile config file contents
     contents = _contents(srcpath, variables)
