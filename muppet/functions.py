@@ -491,7 +491,9 @@ def _chown(path, status, owner, group, link=False):
 
     uid = pwd.getpwnam(owner).pw_uid
     gid = grp.getgrnam(group).gr_gid
-    if uid != status.st_uid or gid != status.st_gid:
+    if os.path.ismount(expanduser(path)):
+        logging.warn("%s is a mountpoint - won't chown", path)
+    elif uid != status.st_uid or gid != status.st_gid:
         logging.info("chowning %s:%s %s", owner, group, path)
         if not __muppet__['_dryrun']:
             if link:
@@ -499,8 +501,7 @@ def _chown(path, status, owner, group, link=False):
             else:
                 os.chown(expanduser(path), uid, gid)
         return True
-    else:
-        return False
+    return False
 
 def chmod(path, modestr):
     '''
@@ -519,7 +520,9 @@ def chmod(path, modestr):
             if char != '-':
                 mode |= MODES[i]
 
-        if mode != stat.S_IMODE(status.st_mode):
+        if os.path.ismount(expanduser(path)):
+            logging.warn("%s is a mountpoint - won't chmod", path)
+        elif mode != stat.S_IMODE(status.st_mode):
             logging.info("chmoding %s %s", oct(mode), path)
             if not __muppet__['_dryrun']:
                 os.chmod(expanduser(path), mode)
