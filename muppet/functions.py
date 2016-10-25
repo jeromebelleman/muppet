@@ -7,6 +7,7 @@ Common configuration options
 
 import os
 from os.path import expanduser, islink, isdir
+import sys
 import pwd
 import grp
 import stat
@@ -172,9 +173,6 @@ def _messages(proc):
     Log messages
     '''
 
-    # FIXME apt-get messes up indents in stdout (not in files)
-
-    # http://stackoverflow.com/questions/12270645
     while True:
         # Has the child exited yet?
         returncode = proc.poll()
@@ -187,13 +185,23 @@ def _messages(proc):
         # Write data
         for ready in readies[0]:
             if ready == proc.stdout.fileno():
-                line = proc.stdout.readline().strip()
+                # Split lines with '\r' to take only the last chunk as these
+                # lines are assumed to be used to show progress and we only
+                # need the result
+                line = proc.stdout.readline().rstrip().split('\r')[-1]
                 if line:
                     logging.debug(line)
+
+                    # Add carriage return that's missing with e.g. apt-get,
+                    # then flush
+                    print '\r',
+                    sys.stdout.flush()
             elif ready == proc.stderr.fileno():
-                line = proc.stderr.readline().strip()
+                line = proc.stderr.readline().rstrip().split('\r')[-1]
                 if line:
                     logging.warning(line)
+                    print >> sys.stderr, '\r',
+                    sys.stderr.flush()
 
 def _logrun(*cmd):
     '''
@@ -336,7 +344,6 @@ def _aptget(command, args, dryrun):
     cmd = "DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -qy %s%s %s" % \
         ('-s ' if dryrun else '', command, ' '.join(args))
     logging.info(cmd)
-    # FIXME Newlines in TTY still messed up
     proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
     _messages(proc)
 
