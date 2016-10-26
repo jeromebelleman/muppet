@@ -404,6 +404,23 @@ def aptkey(keyfile):
 
     devnull.close()
 
+def addmuppetrepo():
+    '''
+    Add muppet repository
+    '''
+
+    path = '/etc/apt/sources.list.d/muppet.list'
+    if os.path.exists(path):
+        return False
+    else:
+        logging.info("adding muppet repository")
+        if not __muppet__['_dryrun']:
+            with open(path, 'w') as fhl:
+                fmt = 'deb [ trusted=yes ] file:%s/repository/%s ./'
+                print >> fhl, fmt % (__muppet__['_directory'], architecture())
+
+        return True
+
 def adduser(user, password, shell):
     '''
     Add user
@@ -879,6 +896,7 @@ __muppet__ = {
     'purge':              purge,
     'getselections':      getselections,
     'aptkey':             aptkey,
+    'addmuppetrepo':      addmuppetrepo,
 
     # User management
     'adduser':            adduser,
