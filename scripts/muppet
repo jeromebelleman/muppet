@@ -131,7 +131,11 @@ def build(args):
         for arch in os.listdir(repo):
             path = '%s/%s' % (repo, arch)
             with open('%s/Packages' % path, 'w') as fhl:
-                subprocess.call(['dpkg-scanpackages', path], stdout=fhl)
+                subprocess.call(
+                    ['dpkg-scanpackages', '.'],
+                    stdout=fhl,
+                    cwd=os.path.expanduser(path),
+                )
 
 def connect(connection, dryrun):
     '''
