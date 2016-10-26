@@ -50,7 +50,8 @@ def build(args):
         cfg = yaml.load(fhl)
 
     # Make directories if needs be
-    repo = args.directory + '/repository/' + muppet.functions.architecture()
+    arch = muppet.functions.architecture()
+    repo = cfg['repository'].format(architecture=arch)
 
     try:
         os.makedirs(repo)
@@ -71,6 +72,8 @@ def build(args):
     # For each package to be made
     change = False
     for package in cfg['packages']:
+        directory = os.path.expanduser(cfg['packages'][package]['directory'])
+
         # Format
         if not cfg['packages'][package] or \
             'cmd' not in cfg['packages'][package]:
@@ -79,24 +82,14 @@ def build(args):
                 repository=repo,
             )
 
-        if not cfg['packages'][package] or \
-            'directory' not in cfg['packages'][package]:
-            directory = cfg['defaults']['directory'].format(
-                package=package,
-            )
-
         # Check a file is newer than the package
         dobreak = False
-        for root, _, files in os.walk(os.path.expanduser(directory)):
+        for root, _, files in os.walk(directory):
             for fle in files:
                 if package not in existing or \
                     os.path.getctime(root + '/' + fle) > existing[package]:
                     # Make package and copy it to the repository
-                    subprocess.call(
-                        cmd,
-                        shell=True,
-                        cwd=os.path.expanduser(directory)
-                    )
+                    subprocess.call(cmd, shell=True, cwd=directory)
                     haschanged = True;
                     dobreak = True
                     break
