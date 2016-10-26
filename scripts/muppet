@@ -46,51 +46,75 @@ def build(args):
     import yaml
 
     # Load config
-    with open(args.directory + '/repository.yaml') as fhl:
+    with open('%s/repository.yaml' % args.directory) as fhl:
         cfg = yaml.load(fhl)
-
-    # Make directories if needs be
-    arch = muppet.functions.architecture()
-    repo = cfg['repository'].format(architecture=arch)
-
-    try:
-        os.makedirs(repo)
-    except OSError, exc:
-        if exc.errno != errno.EEXIST:
-            print >> sys.stderr, exc
-            return 1
 
     # List existing packages and their last change
     repkg = re.compile(r'^(?P<name>.+?)-\d+.*\.deb$')
 
     existing = {}
-    for fle in os.listdir(repo):
-        match = repkg.match(fle)
-        if match:
-            existing[match.group('name')] = os.path.getctime(repo + '/' + fle)
+    for arch in os.listdir(cfg['repository']):
+        dirpath = '%s/%s' % (cfg['repository'], arch)
+        # Sort to have newer version override older ones
+        for fle in sorted(os.listdir(dirpath)):
+            filepath = '%s/%s' % (dirpath, fle)
+            match = repkg.match(fle)
+            if match:
+                if arch in existing:
+                    existing[arch][match.group('name')] = \
+                        os.path.getctime(filepath)
+                else:
+                    existing[arch] = \
+                        {match.group('name'): os.path.getctime(filepath)}
 
     # For each package to be made
-    change = False
-    for package in cfg['packages']:
-        directory = os.path.expanduser(cfg['packages'][package]['directory'])
+    haschanged = False
+    for path in cfg['packages']:
+        # Get package
+        if cfg['packages'][path] and 'package' in cfg['packages'][path]:
+            package = cfg['packages'][path]['package']
+        else:
+            package = os.path.basename(os.path.normpath(path))
 
-        # Format
-        if not cfg['packages'][package] or \
-            'cmd' not in cfg['packages'][package]:
+        # Get architecture
+        if cfg['packages'][path] and 'architecture' in cfg['packages'][path]:
+            arch = cfg['packages'][path]['architecture']
+        else:
+            arch = muppet.functions.architecture()
+
+        # Get command
+        if cfg['packages'][path] and 'cmd' in cfg['packages'][path]:
+            cmd = cfg['packages'][path]['cmd']
+        else:
             cmd = cfg['defaults']['cmd'].format(
                 package=package,
-                repository=repo,
+                repository=cfg['repository'],
+                architecture=arch,
             )
 
         # Check a file is newer than the package
         dobreak = False
-        for root, _, files in os.walk(directory):
+        for root, _, files in os.walk(os.path.expanduser(path)):
             for fle in files:
-                if package not in existing or \
-                    os.path.getctime(root + '/' + fle) > existing[package]:
+                if arch not in existing or \
+                    package not in existing[arch] or \
+                    os.path.getctime('%s/%s' % (root, fle)) > \
+                        existing[arch][package]:
+                    # Make directories if needs be
+                    try:
+                        os.makedirs('%s/%s' % (cfg['repository'], arch))
+                    except OSError, exc:
+                        if exc.errno != errno.EEXIST:
+                            print >> sys.stderr, exc
+                            return 1
+
                     # Make package and copy it to the repository
-                    subprocess.call(cmd, shell=True, cwd=directory)
-                    haschanged = True;
+                    subprocess.call(
+                        cmd,
+                        shell=True,
+                        cwd=os.path.expanduser(path),
+                    )
+                    haschanged = True
                     dobreak = True
                     break
             if dobreak:
@@ -98,8 +122,10 @@ def build(args):
 
     # Scan packages
     if haschanged:
-        with open(repo + '/Packages', 'w') as fhl:
-            subprocess.call(['dpkg-scanpackages', repo], stdout=fhl)
+        for arch in os.listdir(cfg['repository']):
+            path = '%s/%s' % (cfg['repository'], arch)
+            with open('%s/Packages' % path, 'w') as fhl:
+                subprocess.call(['dpkg-scanpackages', path], stdout=fhl)
 
 def connect(connection, dryrun):
     '''
