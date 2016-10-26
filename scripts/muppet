@@ -84,7 +84,11 @@ def build(args):
 
         # Get command
         if cfg['packages'][path] and 'cmd' in cfg['packages'][path]:
-            cmd = cfg['packages'][path]['cmd']
+            cmd = cfg['packages'][path]['cmd'].format(
+                package=package,
+                repository=cfg['repository'],
+                architecture=arch,
+            )
         else:
             cmd = cfg['defaults']['cmd'].format(
                 package=package,
