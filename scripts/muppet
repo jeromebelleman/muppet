@@ -37,6 +37,77 @@ def encrypt(_):
     # http://serverfault.com/questions/330069
     print crypt.crypt(getpass.getpass(), '$6$%s' % uuid.uuid4())
 
+def build(args):
+    '''
+    Build packages
+    '''
+
+    import re
+    import yaml
+
+    # Load config
+    with open(args.directory + '/repository.yaml') as fhl:
+        cfg = yaml.load(fhl)
+
+    # Make directories if needs be
+    repo = args.directory + '/repository/' + muppet.functions.architecture()
+
+    try:
+        os.makedirs(repo)
+    except OSError, exc:
+        if exc.errno != errno.EEXIST:
+            print >> sys.stderr, exc
+            return 1
+
+    # List existing packages and their last change
+    repkg = re.compile(r'^(?P<name>.+)-\d+.*\.deb$')
+
+    existing = {}
+    for fle in os.listdir(repo):
+        match = repkg.match(fle)
+        if match:
+            existing[match.group('name')] = os.path.getctime(repo + '/' + fle)
+
+    # For each package to be made
+    change = False
+    for package in cfg['packages']:
+        # Format
+        if not cfg['packages'][package] or \
+            'cmd' not in cfg['packages'][package]:
+            cmd = cfg['defaults']['cmd'].format(
+                package=package,
+                repository=repo,
+            )
+
+        if not cfg['packages'][package] or \
+            'directory' not in cfg['packages'][package]:
+            directory = cfg['defaults']['directory'].format(
+                package=package,
+            )
+
+        # Check a file is newer than the package
+        dobreak = False
+        for root, _, files in os.walk(os.path.expanduser(directory)):
+            for fle in files:
+                if package not in existing or \
+                    os.path.getctime(root + '/' + fle) > existing[package]:
+                    # Make package and copy it to the repository
+                    subprocess.call(
+                        cmd,
+                        shell=True,
+                        cwd=os.path.expanduser(directory)
+                    )
+                    haschanged = True;
+                    dobreak = True
+                    break
+            if dobreak:
+                break
+
+    # Scan packages
+    if haschanged:
+        with open(repo + '/Packages', 'w') as fhl:
+            subprocess.call(['dpkg-scanpackages', repo], stdout=fhl)
+
 def connect(connection, dryrun):
     '''
     Connect to network
@@ -102,14 +173,6 @@ def applyconf(args):
     else:
         sid = None
 
-    # Create runtime directory if needs be
-    try:
-        os.mkdir(args.directory)
-    except OSError, exc:
-        if exc.errno != errno.EEXIST:
-            print >> sys.stderr, exc
-            return 1
-
     # Messages
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
@@ -165,12 +228,13 @@ def main():
 
     # Arguments
     parser = ArgumentParser(description="manage configurations",)
+    parser.add_argument('-d', '--directory', type=os.path.expanduser,
+                        help="Muppet directory", default=DIR)
+
     subs = parser.add_subparsers()
 
     applyparser = subs.add_parser('apply', help="apply configuration",
                                   formatter_class=ArgumentDefaultsHelpFormatter)
-    applyparser.add_argument('-d', '--directory', type=os.path.expanduser,
-                             help="Muppet directory", default=DIR)
     applyparser.add_argument('--dryrun', '-n', action='store_true',
                              help="don't perform any change")
     applyparser.add_argument('--verbose', '-v', action='store_true',
@@ -192,7 +256,18 @@ def main():
     encryptparser = subs.add_parser('encrypt', help="encrypt password")
     encryptparser.set_defaults(func=encrypt)
 
+    buildparser = subs.add_parser('build', help="build and deploy packages")
+    buildparser.set_defaults(func=build)
+
     args = parser.parse_args()
+
+    # Create runtime directory if needs be
+    try:
+        os.mkdir(args.directory)
+    except OSError, exc:
+        if exc.errno != errno.EEXIST:
+            print >> sys.stderr, exc
+            return 1
 
     # Run
     args.func(args)
