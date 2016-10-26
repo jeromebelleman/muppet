@@ -61,7 +61,7 @@ def build(args):
             return 1
 
     # List existing packages and their last change
-    repkg = re.compile(r'^(?P<name>.+)-\d+.*\.deb$')
+    repkg = re.compile(r'^(?P<name>.+?)-\d+.*\.deb$')
 
     existing = {}
     for fle in os.listdir(repo):
