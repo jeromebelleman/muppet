@@ -45,16 +45,18 @@ def build(args):
     import re
     import yaml
 
+    repo = '%s/repository' % args.directory
+
     # Load config
-    with open('%s/repository.yaml' % args.directory) as fhl:
+    with open('%s.yaml' % repo) as fhl:
         cfg = yaml.load(fhl)
 
     # List existing packages and their last change
     repkg = re.compile(r'^(?P<name>.+?)-\d+.*\.deb$')
 
     existing = {}
-    for arch in os.listdir(cfg['repository']):
-        dirpath = '%s/%s' % (cfg['repository'], arch)
+    for arch in os.listdir(repo):
+        dirpath = '%s/%s' % (repo, arch)
         # Sort to have newer version override older ones
         for fle in sorted(os.listdir(dirpath)):
             filepath = '%s/%s' % (dirpath, fle)
@@ -86,13 +88,13 @@ def build(args):
         if cfg['packages'][path] and 'cmd' in cfg['packages'][path]:
             cmd = cfg['packages'][path]['cmd'].format(
                 package=package,
-                repository=cfg['repository'],
+                repository=repo,
                 architecture=arch,
             )
         else:
             cmd = cfg['defaults']['cmd'].format(
                 package=package,
-                repository=cfg['repository'],
+                repository=repo,
                 architecture=arch,
             )
 
@@ -106,7 +108,7 @@ def build(args):
                         existing[arch][package]:
                     # Make directories if needs be
                     try:
-                        os.makedirs('%s/%s' % (cfg['repository'], arch))
+                        os.makedirs('%s/%s' % (repo, arch))
                     except OSError, exc:
                         if exc.errno != errno.EEXIST:
                             print >> sys.stderr, exc
@@ -126,8 +128,8 @@ def build(args):
 
     # Scan packages
     if haschanged:
-        for arch in os.listdir(cfg['repository']):
-            path = '%s/%s' % (cfg['repository'], arch)
+        for arch in os.listdir(repo):
+            path = '%s/%s' % (repo, arch)
             with open('%s/Packages' % path, 'w') as fhl:
                 subprocess.call(['dpkg-scanpackages', path], stdout=fhl)
 
