@@ -126,8 +126,8 @@ def build(args):
             if dobreak:
                 break
 
-    # Scan packages
     if haschanged:
+        # Scan packages
         for arch in os.listdir(repo):
             path = '%s/%s' % (repo, arch)
             with open('%s/Packages' % path, 'w') as fhl:
@@ -136,6 +136,9 @@ def build(args):
                     stdout=fhl,
                     cwd=os.path.expanduser(path),
                 )
+
+        # Run apt-get update
+        subprocess.call(['apt-get', 'update'])
 
 def connect(connection, dryrun):
     '''
