@@ -734,6 +734,16 @@ def mv(src, dst):
 
         return True
 
+def rmtree(path):
+    '''
+    Recursively remove files
+    '''
+
+    logging.info("recursively removing %s", path)
+    if not __muppet__['_dryrun']:
+        shutil.rmtree(expanduser(path))
+    return True
+
 def edit(srcpath, path, owner, group, mode, variables=None):
     '''
     Edit config file with template
@@ -902,6 +912,7 @@ __muppet__ = {
     'mkdir':              mkdir,
     'symlink':            symlink,
     'mv':                 mv,
+    'rmtree':             rmtree,
     'chmod':              chmod,
     'resource':           resource,
 
