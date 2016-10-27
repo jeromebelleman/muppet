@@ -720,6 +720,19 @@ def symlink(source, name, owner, group):
 
     return change
 
+def mv(src, dst):
+    '''
+    Move file
+    '''
+
+    if os.path.lexists(expanduser(dst)):
+        logging.warn("won't move %s to %s, file already exists", src, dst)
+    else:
+        logging.info("moving %s to %s", src, dst)
+        if not __muppet__['_dryrun']:
+            shutil.move(expanduser(src), expanduser(dst))
+
+        return True
 
 def edit(srcpath, path, owner, group, mode, variables=None):
     '''
@@ -888,6 +901,7 @@ __muppet__ = {
     # Filesystem
     'mkdir':              mkdir,
     'symlink':            symlink,
+    'mv':                 mv,
     'chmod':              chmod,
     'resource':           resource,
 
