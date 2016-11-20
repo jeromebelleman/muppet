@@ -581,7 +581,11 @@ def _template(path, variables):
     from mako.template import Template
 
     identifiers = (k for k in __muppet__.keys() if k[0] != '_')
-    tpt = Template(filename=path, imports=[IMPORT % ', '.join(identifiers)])
+    tpt = Template(
+        filename=path,
+        input_encoding='utf-8',
+        imports=[IMPORT % ', '.join(identifiers)],
+    )
     return tpt.render(**variables) if variables else tpt.render()
 
 def _backup(path):

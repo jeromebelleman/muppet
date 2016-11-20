@@ -4,9 +4,11 @@
 Manage configurations
 '''
 
+import sys
+reload(sys)
+sys.setdefaultencoding('UTF8')
 import os
 import os.path
-import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import errno
 import logging
