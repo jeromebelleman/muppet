@@ -1,3 +1,5 @@
+A fast, server-less configuration management system with full-Python manifests.
+
 # NAME
 
 muppet – Configuration management tool
